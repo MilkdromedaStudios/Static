@@ -1,0 +1,65 @@
+name: Publish Static preview
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+jobs:
+  build:
+    permissions:
+      contents: read
+      pages: read
+    runs-on: ubuntu-latest
+    outputs:
+      pages_enabled: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build standalone preview
+        run: python scripts/build_preview.py
+      - name: Check Pages setup
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/pages" --jq '.build_type' > /tmp/static-pages-type 2>/dev/null; then
+            if [ "$(cat /tmp/static-pages-type)" = "workflow" ]; then
+              echo "enabled=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "enabled=false" >> "$GITHUB_OUTPUT"
+              echo '::notice::Set Settings > Pages > Source to GitHub Actions, then rerun this workflow.'
+            fi
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo '::notice::Preview built. Enable Settings > Pages > Source: GitHub Actions, then rerun this workflow to publish.'
+          fi
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Save downloadable preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-preview
+          path: site
+          include-hidden-files: true
+  deploy:
+    needs: build
+    if: needs.build.outputs.pages_enabled == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

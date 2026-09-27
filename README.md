@@ -1,57 +1,78 @@
 <div align="center">
-  <img src="buns/static/bun.svg" width="82" alt="Buns">
-  <h1>Buns</h1>
-  <p><strong>A little help. A lot of possibility.</strong></p>
-  <p>A Python AI workspace with a small coordinator, specialist agents, useful skills, and visible costs.</p>
+  <img src="static_ai/static/static.svg" width="76" alt="Static">
+  <h1>Static</h1>
+  <p><strong>A little less to do. A little more you.</strong></p>
+  <p>Your personal AI workspace. Research, plan, create, and keep good work moving.</p>
 </div>
 
-Buns runs on your computer. Talk to it in a browser, watch its plan and activity, and download what it makes. Use a local Ollama model to avoid per-token API fees, or connect OpenAI-compatible providers. The repository is **Bun**; the assistant is **Buns**.
+Static is a Python app with a task-oriented interface, a small AI coordinator, focused specialist agents, and 13 useful skills. It runs on your computer with your models. Start with Ollama for local inference, or connect OpenAI-compatible providers and generative media models.
 
-![Buns workspace](docs/workspace.png)
+![Static in light mode](docs/static-light.png)
 
-## What is included
+<details>
+<summary>See dark mode</summary>
 
-| Capability | What works in this release | Setup needed |
-|---|---|---|
-| Chat & orchestration | Saved conversations, native tool calling, bounded coordinator loop, stop/resume after approval | A tool-capable language model |
-| Small specialist agents | Research synthesis, writing, coding assistance, planning; configurable model per role | One model can cover all roles |
-| Public web | Search with source links, page reading, redirect/IP validation, 15-minute search cache | Free DuckDuckGo search is best effort; optional Brave key |
-| Documents & files | PDF, Word/DOCX, Markdown, TXT, CSV, JSON, HTML; uploads and scoped text reading | Runs locally |
-| 3D geometry | Real downloadable cube, sphere and cylinder OBJ files | Runs locally |
-| AI images, videos & 3D | Replicate prediction submission, approvals, persisted jobs, polling, local output downloads | Your API key, chosen models, input schemas and estimated costs |
-| Shopping assistance | Research real listings, compare price/shipping/tax, link to seller checkout | Web access; you complete purchases |
-| Cost controls | Cheapest eligible model routing, local-only mode, per-task/daily reservations, usage ledger | Current cloud rates entered and confirmed by you |
-| Interface | Responsive chat, task plan/activity, files, skill switches, connection forms | Included; no Node build required |
+![Static in dark mode](docs/static-dark.png)
 
-**This is runnable application code, not a hosted service or a new trained model.** The UI/server starts immediately; useful AI replies require a running local model or configured model API. Paid media is disabled until configured. Buns does not log into accounts, run arbitrary commands, send messages, book things or buy items automatically. The architecture leaves room for carefully scoped future action skills.
+</details>
 
-## Start on Windows
+## The workspace
 
-Install [Python 3.11+](https://www.python.org/downloads/) (enable “Add Python to PATH”) and [Ollama](https://ollama.com/download). Open PowerShell:
+| Page | What you can do |
+|---|---|
+| Home | Start a conversation, explore ideas, and pick up a saved goal. |
+| Conversation | Talk with the coordinator, attach files, follow tool activity, approve media, and download results. |
+| Tasks | Save goals, edit details, work through persistent checklists, and mark tasks complete. |
+| Create | Make documents, images, video, 3D models, email drafts, and calendar files. |
+| Library | Find, filter, preview text, and download your work. Track external media generations. |
+| Skills | Enable or disable individual tools; extend the registry with trusted Python code. |
+| Connections | Configure and test language models, role routing, media profiles, and provider costs. |
+| Settings | Set a name, explicit preferences, spending limits, web search, and light/dark/system appearance. |
 
-```powershell
-git clone https://github.com/MilkdromedaStudios/Bun.git
-cd Bun
-ollama pull qwen3:4b
-powershell -ExecutionPolicy Bypass -File .\start.ps1
-```
+The interface is original to Static. Its goal-focused workflow takes inspiration from personal agents such as Muse. Static is independent of Meta and does not include Meta models, assets, accounts or services.
 
-The execution-policy flag applies only to this launch process. If you prefer, use the manual commands below. If Git is unavailable, download the repository ZIP from GitHub, extract it and open PowerShell in the extracted directory.
+## Interactive preview / GitHub Pages
 
-Open **http://127.0.0.1:8000**. Go to **Connections → Ollama · Qwen 3 → Test connection**. Keep Ollama running. First model download is large; local inference speed depends on your RAM/CPU/GPU. You can choose a smaller or stronger tool-capable model in Connections.
+The static preview uses **the same interface** as the Python app, with a separate, explicitly selected demo adapter. It has eight real HTML pages, working navigation, example conversations, editable tasks, sample approvals, downloadable files, skill toggles, settings and persistent themes. It works at a repository subpath such as `/Static/`.
 
-## Start on macOS / Linux
-
-Install Python 3.11+, Git and Ollama, then:
+**Preview target:** [milkdromedastudios.github.io/Static/](https://milkdromedastudios.github.io/Static/) — available after Pages is enabled and the publishing workflow deploys successfully. See [Pages setup](docs/PREVIEW.md) if this link is not live yet.
 
 ```bash
-git clone https://github.com/MilkdromedaStudios/Bun.git
-cd Bun
+python scripts/build_preview.py
+python -m http.server 8080 --directory site
+```
+
+Open **http://localhost:8080**. Do not open `index.html` directly as a `file://` URL: browsers restrict JavaScript modules there.
+
+The preview is deliberately simulated. Its fictional tasks and example files live in that browser's local storage. It makes **no model, search, payment, or backend API calls**, collects no API keys, and cannot host the Python server on GitHub Pages. The full app never silently falls back to demo responses. Reset examples in Settings; download anything you want to keep first.
+
+The **Publish Static preview** workflow builds on every main-branch push. It retains a downloadable `static-preview` artifact even before Pages is enabled. Once **Settings → Pages → Source → GitHub Actions** is selected, run or rerun that workflow to publish.
+
+## Start the Python app
+
+Install [Python 3.11+](https://www.python.org/downloads/), Git, and [Ollama](https://ollama.com/download). Keep Ollama running and download a tool-capable model:
+
+```bash
+git clone https://github.com/MilkdromedaStudios/Static.git
+cd Static
 ollama pull qwen3:4b
+```
+
+On **macOS / Linux**:
+
+```bash
 bash start.sh
 ```
 
-If Ollama is not running, start its application or run `ollama serve` in another terminal. Visit **http://127.0.0.1:8000**.
+On **Windows**, enable “Add Python to PATH” during installation, then use PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+The execution-policy option applies only to that launch process. Alternatively, use the manual setup below. If Git is unavailable, download the repository ZIP, extract it, and run from that directory.
+
+Open **http://127.0.0.1:8000**. In **Connections**, expand Ollama and choose **Test connection**. Local inference speed and model quality depend on your hardware. The first model download may be large. If the server cannot reach a model, it reports the error and preserves your work.
 
 ### Manual setup
 
@@ -63,81 +84,104 @@ source .venv/bin/activate
 # .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.lock
 python -m pip install --no-deps -e .
-python -m buns
+python -m static_ai
 ```
 
-`requirements.lock` contains the tested dependency snapshot. `pip install -e .` alone also works but resolves versions within the ranges in `pyproject.toml`. No npm install is needed to run the application.
+The installed CLI is also available as `static-ai`. No npm or JavaScript build is needed to run the app. `requirements.lock` is the tested dependency snapshot; `pip install -e .` alone resolves versions within the declared ranges.
 
-## Connect models, search and media
+**Upgrading from Buns?** Existing `data/buns.db` is backed up into `data/static.db` automatically on first launch. Keep the same data directory so artifacts remain available. See [migration](docs/MIGRATION.md), especially for Docker volumes.
 
-1. Copy `.env.example` to `.env`. Only set the provider keys you want to use. The CLI loads this file automatically; restart after changing environment keys.
-2. Open **Connections**. Add the API base URL, exact model ID, key **environment-variable name**, supported roles, token parameter and current rates. Confirm the pricing checkbox for cloud models, then save and test.
-3. For web search, use the free best-effort option or select Brave and set `BRAVE_API_KEY`. Free search can be blocked/rate limited; direct page reading remains available when the target permits access.
-4. For image, video or AI 3D generation, set `REPLICATE_API_TOKEN`, then configure each media profile with a real `owner/model` or pinned `owner/model:version`, the prompt field, required default inputs and a conservative cost reservation. Refer to that model’s own input schema; models are not interchangeable.
-5. Ask Buns to generate. The exact prompt, model and cost reservation appear for approval. Files → Refresh jobs retrieves finished outputs. Do not close the server until important media has downloaded.
+## What actually works
 
-Ollama is the default because it needs no hosted-model API key. Its model quality and speed depend on the model and your hardware. Economy mode selects the cheapest configured eligible model; for stronger results, assign the coordinator role to a stronger model. There is no magic universal provider key, guaranteed free cloud generation or automatic paid fallback.
+| Capability | Implementation | Required setup |
+|---|---|---|
+| Chat and orchestration | Saved conversations, native tool calls, bounded coordinator, visible action log | A language model with tool calling |
+| Specialist agents | One focused researcher, writer, coder or planner call at a time; no recursive delegation | One model can cover all roles |
+| Saved goals | Persistent tasks/checklists connected to conversations; work continues if you close the browser while the server stays running | Included |
+| Public web research | Search, source links, page extraction, redirect/IP validation and search cache | Best-effort DuckDuckGo, or optional Brave key |
+| Documents | PDF, Word, Markdown, text, CSV, JSON and HTML | Runs locally |
+| File reading and analysis | Conversation-scoped uploads, text/PDF extraction, CSV row counts and numeric summaries | Runs locally |
+| Email and calendar | Downloadable unsent `.eml` drafts and timezone-aware `.ics` event files | You review and send/import them |
+| Procedural 3D | Real cube, sphere and cylinder OBJ geometry | Runs locally |
+| AI images, video and 3D | Replicate submissions, one-use approvals, durable job polling, output downloads | Your chosen models, schemas, token and estimated prices |
+| Shopping help | Research listings, compare price + shipping + known tax, link to seller | You complete checkout |
+| Cost controls | Cheapest eligible configured model, local-only mode, per-run/daily reservations, usage ledger | Current cloud rates entered and confirmed by you |
 
-The spend display is **an estimate**, based on configured rates, conservative reservations and returned token usage. Keep rates current and set billing limits in provider dashboards. A request timeout may still have incurred a charge, so uncertain reservations remain counted. See [cost semantics](docs/ARCHITECTURE.md#cost-semantics).
+Static does not log into accounts, autonomously purchase items, send messages, book travel, execute arbitrary code or run a general browser. Saved tasks are goals you start yourself, not a scheduler. There is no automatic semantic memory: preferences are explicit and editable. These boundaries are reflected in the available tools and interface.
 
-## Try these tasks
+## Connect your models
 
-- “Research three mechanical keyboards under my budget. Ask my preferences first, then compare total known costs and cite seller links.”
-- “Make a five-step plan for my science project and save it as a Word document.”
-- “Read this uploaded CSV, explain the trend, and make a short PDF summary.”
+1. Copy `.env.example` to `.env`. Set only the provider secrets you use. The CLI loads the file; restart after changing environment variables.
+2. In **Connections → Add model**, enter a compatible base URL, exact model ID, key **environment-variable name**, and verified provider rates. Save before testing. Advanced routing assigns models to coordinator/specialist roles.
+3. In **Settings**, choose best-effort DuckDuckGo or Brave. Brave needs `BRAVE_API_KEY` and a conservative search-cost reservation. Free search can be blocked or rate limited.
+4. For media, set `REPLICATE_API_TOKEN`, then configure the image/video/3D profile in Connections with a real `owner/model` or pinned version, its actual prompt field, required default inputs, and cost reservation. Model schemas differ; consult the chosen model's documentation.
+5. Use **Create** or ask in chat. Paid media pauses for your approval with the prompt, model, inputs and reservation. **Library → Refresh status** retrieves updates. Keep the Python server running until outputs download.
+
+Economy mode is a routing heuristic, not a guarantee of minimum possible cost or answer quality. Local-only mode excludes remote models and paid media/search. The spend display is an estimate; uncertain request outcomes retain reservations. Configure provider-side billing limits too. See [cost semantics](docs/ARCHITECTURE.md#cost-semantics).
+
+## Try a few things
+
+- “Research three keyboards under my budget. Ask my country and preferences first, then compare total known costs and cite seller links.”
+- “Make a five-step plan for my science project and save a Word document.”
+- “Analyze this CSV and make a short PDF summary.”
+- “Prepare an email draft asking to move our meeting.”
+- “Make a calendar file for a one-hour focus session. Ask my date and timezone first.”
 - “Create a sphere as an OBJ file for Blender.”
-- “Have the writer draft three names for my project, pick one, and create a Markdown brief.”
-- After connecting a media profile: “Generate an image of a cozy miniature bakery.”
+- After connecting a media profile: “Generate an editorial image of a sculptural glass object.”
 
 ## Docker
 
-Docker is optional. Copy `.env.example` to `.env`, generate a token with `python -c "import secrets; print(secrets.token_urlsafe(32))"`, and put it in `BUNS_AUTH_TOKEN`.
+Copy `.env.example` to `.env`. Generate a token with `python -c "import secrets; print(secrets.token_urlsafe(32))"` and set `STATIC_AUTH_TOKEN`.
 
 ```bash
 docker compose --profile local up --build -d
 docker compose exec ollama ollama pull qwen3:4b
 ```
 
-Visit http://127.0.0.1:8000 and unlock with that token. In Connections, change the Ollama base URL to **`http://ollama:11434/v1`** and save/test. The `local` profile starts Ollama on CPU; GPU support is platform-specific. Alternatively, start only Buns with `docker compose up --build -d` and connect to your existing host Ollama at `http://host.docker.internal:11434/v1` (your Ollama installation must accept that connection).
+Open http://127.0.0.1:8000 and unlock with that token. In Connections, set the Ollama URL to **`http://ollama:11434/v1`**, save and test. The optional local profile uses CPU by default; GPU setup is platform-specific. To use an existing host Ollama, start only Static with `docker compose up --build -d` and use `http://host.docker.internal:11434/v1` if that Ollama installation accepts the connection.
 
-The web port binds only to host loopback. Chats/settings/files persist in the `buns-data` volume; models persist in `ollama-data`. Do not use `docker compose down -v` unless you intend to delete those volumes. The provided Docker recipe is included for deployment; local container execution may not be available in every development environment.
+The web port binds to host loopback. Data is in the `static-workspace-data` volume, or the existing volume named by `STATIC_DATA_VOLUME`. Model storage uses `ollama-data`. Never run `docker compose down -v` unless you intend to delete those volumes. Docker is provided as a deployment recipe; local Docker execution was not part of this build's validation.
 
-## Develop and test
+## Development and validation
 
 ```bash
 python -m pip install -r requirements-dev.lock
 python -m pip install --no-deps -e .
 python -m pytest -q
-python -m ruff check buns tests
-python -m ruff format --check buns tests
+python -m ruff check static_ai tests scripts
+python -m ruff format --check static_ai tests scripts
 ```
 
-The suite exercises real application workflows using a scripted HTTP provider: tool loops, file creation/download, media approvals and denial, budget accounting, specialist routing, cancellation, persistence and security boundaries. **Mocks verify the API contract, not the quality or live availability of any model.** Live paid generation requires your own configured credentials and was not used in automated tests.
+The 37 backend tests cover real FastAPI/SQLite workflows with deterministic HTTP providers: plans, exports, approvals, costs, recovery, scope, authentication, migration and request boundaries. Browser tests cover both the Python UI and the Pages export. **No paid model calls are used; these tests verify behavior and contracts, not live model quality.**
 
-Browser smoke test (Node is needed only for this test):
+For the browser suite, install Node and Playwright:
 
 ```bash
 npm install --no-save playwright@1.58.2
 npx playwright install chromium
-# Terminal 1 — test-only fake provider, never use this as the production app:
+python scripts/build_preview.py --output test-results/pages/Static
+# Terminal 1 (test fixture only, not the production app):
 python tests/ui_server.py
 # Terminal 2:
+python -m http.server 8766 --bind 127.0.0.1 --directory test-results/pages
+# Terminal 3:
 node tests/browser-smoke.cjs
 ```
 
-GitHub Actions runs Python 3.11/3.12/3.13 checks and the browser workflow. See [architecture](docs/ARCHITECTURE.md), [adding skills](docs/SKILLS.md), and [security](SECURITY.md).
+GitHub Actions runs Python 3.11/3.12/3.13 checks and the browser suite, saving screenshots as artifacts. See [validation](docs/VALIDATION.md), [architecture](docs/ARCHITECTURE.md), [adding skills](docs/SKILLS.md), and [security](SECURITY.md).
 
 ## Troubleshooting
 
-| Symptom | Fix |
+| Symptom | What to check |
 |---|---|
-| Cannot reach Ollama | Start Ollama, pull the exact model, check `http://localhost:11434/v1`, test the connection. |
-| Model listed but tools fail | Choose a model/server that supports OpenAI function calling; match `max_tokens` vs `max_completion_tokens`. |
-| Budget reached | Raise the appropriate limit after reviewing rates, or choose Local models only. Uncertain previous costs are retained. |
-| Settings cannot be saved | Finish, decline, or stop pending tasks before editing configuration. |
-| Web search returns nothing | Free search may be blocked. Supply a public page URL or configure Brave. Direct public DNS/network access is required. |
-| Media error or stuck job | Verify model input schema, token, provider limits and prediction status. Use Refresh jobs; check the dashboard before resubmitting an unknown job. |
-| Server restarted during a task | Completed files persist. Interrupted runs are not replayed; send a follow-up. Pending approvals and known media jobs remain available. |
-| Download button fails | Unlock the workspace if token-protected; keep the same server data directory. |
+| Cannot reach Ollama | Start Ollama, pull the exact model, check the base URL, then test. |
+| Connection succeeds but tools fail | Use a model/server with function calling; match `max_tokens` or `max_completion_tokens`. |
+| Budget reached | Review rates, then adjust limits or choose local-only. Uncertain costs remain counted. |
+| Settings cannot be saved | Finish, decline or stop active runs before changing configuration. |
+| Search returns nothing | Try a known public URL or configure Brave. Direct public DNS/network access is needed. |
+| Media job is stuck | Check the provider's schema, key and dashboard before resubmitting an unknown job. |
+| Server restarted mid-task | Files persist. Send a follow-up for an interrupted run; known media jobs resume polling. |
+| Preview URL is 404 | Enable Pages with source **GitHub Actions**, then run **Publish Static preview**. |
+| Preview edits disappeared | Local storage belongs to that browser and origin. Download important examples; use the Python app for durable work. |
 
-Preserves the repository’s **Apache-2.0** license. Provider services and models have their own terms and licenses.
+Apache-2.0 licensed. Provider services and models have their own licenses and terms.

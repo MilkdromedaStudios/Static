@@ -100,7 +100,7 @@ async def mesh(ctx, args):
             faces.append((a, b, b + n, a + n))
         faces.extend([tuple(range(n, 0, -1)), tuple(range(n + 1, 2 * n + 1))])
     content = (
-        "# Buns procedural mesh; units are arbitrary\n"
+        "# Static procedural mesh; units are arbitrary\n"
         + "\n".join("v %.6f %.6f %.6f" % v for v in vertices)
         + "\n"
         + "\n".join("f " + " ".join(map(str, f)) for f in faces)
@@ -121,7 +121,7 @@ def register(registry):
     registry.add(
         Skill(
             "file_create",
-            "Create a downloadable file or document. PDF and DOCX support # headings and plain paragraphs; CSV and JSON must contain valid data. HTML is downloaded, never executed by Buns.",
+            "Create a downloadable file or document. PDF and DOCX support # headings and plain paragraphs; CSV and JSON must contain valid data. HTML is downloaded, never executed by Static.",
             "Files",
             Write,
             write,

@@ -1,4 +1,4 @@
-name: Test Buns
+name: Test Static
 on:
   push:
   pull_request:
@@ -17,8 +17,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -r requirements-dev.lock
       - run: python -m pip install --no-deps -e .
-      - run: python -m ruff check buns tests
-      - run: python -m ruff format --check buns tests
+      - run: python -m ruff check static_ai tests scripts
+      - run: python -m ruff format --check static_ai tests scripts
       - run: python -m pytest -q
   browser:
     runs-on: ubuntu-latest
@@ -34,5 +34,12 @@ jobs:
       - run: npm install --no-save playwright@1.58.2
       - run: npx playwright install --with-deps chromium
       - run: |
-          python tests/ui_server.py &
+          python scripts/build_preview.py --output test-results/pages/Static
+          python tests/ui_server.py > test-results/live-server.log 2>&1 &
+          python -m http.server 8766 --bind 127.0.0.1 --directory test-results/pages > test-results/preview-server.log 2>&1 &
           node tests/browser-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: static-browser-results
+          path: test-results/*.png

@@ -33,7 +33,7 @@ async def fetch_public(url: str, limit=2_000_000):
             pinned = httpx.URL(url).copy_with(host=address)
             headers = {
                 "Host": parts.netloc,
-                "User-Agent": "Buns/0.1 (+local personal research)",
+                "User-Agent": "Static/0.1 (+local personal research)",
                 "Accept-Encoding": "identity",
             }
             async with client.stream(

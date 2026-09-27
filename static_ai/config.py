@@ -10,6 +10,11 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+def env(name, default=""):
+    """Keep existing installations protected during the brand migration."""
+    return os.getenv("STATIC_" + name, os.getenv("BUNS_" + name, default))
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
@@ -85,6 +90,8 @@ class MediaProfile(StrictModel):
 
 
 class Settings(StrictModel):
+    display_name: str = Field(default="", max_length=80)
+    preferences: str = Field(default="", max_length=3000)
     models: list[Model] = Field(
         default_factory=lambda: [Model(id="local", name="Ollama · Qwen 3", model="qwen3:4b")],
         min_length=1,

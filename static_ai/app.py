@@ -1,10 +1,10 @@
 import asyncio
 import hmac
 import json
-import os
 import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
@@ -14,12 +14,13 @@ from pydantic import Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .artifacts import Artifacts
-from .config import Config, Settings, StrictModel
+from .config import Config, Settings, StrictModel, env
 from .db import Store, now, uid
 from .engine import Engine
 from .media import MediaService
 from .providers import Providers
 from .skills import create_registry
+from .skills.planning import Step
 
 
 class Chat(StrictModel):
@@ -37,16 +38,42 @@ class Title(StrictModel):
     title: str = Field(default="New conversation", min_length=1, max_length=100)
 
 
+class TaskCreate(StrictModel):
+    title: str = Field(min_length=1, max_length=100)
+    objective: str = Field(min_length=1, max_length=12000)
+    category: Literal["work", "life", "research", "creative"] = "life"
+
+
+class TaskEdit(StrictModel):
+    title: str | None = Field(default=None, min_length=1, max_length=100)
+    objective: str | None = Field(default=None, min_length=1, max_length=12000)
+    status: Literal["open", "done"] | None = None
+    steps: list[Step] | None = Field(default=None, max_length=12)
+
+
+class TaskStart(StrictModel):
+    mode: Literal["economy", "local"] = "economy"
+    budget_usd: float | None = Field(default=None, ge=0, le=100)
+
+
 def create_app(data_dir=None, transport=None):
-    config = Config(Path(data_dir or os.getenv("BUNS_DATA_DIR", "data")))
-    store = Store(config.root / "buns.db")
+    config = Config(Path(data_dir or env("DATA_DIR", "data")))
+    # Back up through SQLite so an existing WAL is included. Keep the original for rollback.
+    legacy = config.root / "buns.db"
+    target = config.root / "static.db"
+    if legacy.exists() and not target.exists():
+        temporary = config.root / "static-migration.tmp"
+        with sqlite3.connect(legacy) as old, sqlite3.connect(temporary) as new:
+            old.backup(new)
+        temporary.replace(target)
+    store = Store(config.root / "static.db")
     artifacts = Artifacts(config.root, store)
     providers = Providers(config, store, transport)
     media = MediaService(config, store, artifacts, transport)
     registry = create_registry()
     engine = Engine(config, store, providers, artifacts, media, registry)
-    token = os.getenv("BUNS_AUTH_TOKEN", "")
-    allowed_hosts = os.getenv("BUNS_ALLOWED_HOSTS", "localhost,127.0.0.1,::1").split(",")
+    token = env("AUTH_TOKEN")
+    allowed_hosts = env("ALLOWED_HOSTS", "localhost,127.0.0.1,::1").split(",")
 
     @asynccontextmanager
     async def lifespan(app):
@@ -65,8 +92,8 @@ def create_app(data_dir=None, transport=None):
         await asyncio.gather(poller, *tasks, return_exceptions=True)
 
     app = FastAPI(
-        title="Buns",
-        version="0.1.0",
+        title="Static",
+        version="0.2.0",
         lifespan=lifespan,
         docs_url=None,
         redoc_url=None,
@@ -94,7 +121,7 @@ def create_app(data_dir=None, transport=None):
                         {"detail": "Cross-origin writes are blocked"}, status_code=403
                     )
                 # Custom header prevents cross-site form posts to a local unauthenticated app.
-                if request.headers.get("x-buns-client") != "web":
+                if request.headers.get("x-static-client") != "web":
                     return JSONResponse({"detail": "Missing client header"}, status_code=403)
                 try:
                     if int(request.headers.get("content-length", "0")) > 5_500_000:
@@ -122,7 +149,7 @@ def create_app(data_dir=None, transport=None):
 
     @app.get("/api/health")
     async def health():
-        return {"ok": True, "version": "0.1.0", "auth_enabled": bool(token)}
+        return {"ok": True, "version": "0.2.0", "auth_enabled": bool(token)}
 
     @app.get("/api/settings")
     async def settings():
@@ -161,6 +188,78 @@ def create_app(data_dir=None, transport=None):
     async def conversations():
         return store.query("SELECT * FROM conversations ORDER BY created DESC")
 
+    def task_record(task_id):
+        item = store.one("SELECT * FROM tasks WHERE id=?", (task_id,))
+        if not item:
+            raise HTTPException(404, "Task not found")
+        item["steps"] = json.loads(item["steps"])
+        item["run"] = store.one(
+            "SELECT id,status,error FROM runs WHERE conversation_id=? ORDER BY created DESC LIMIT 1",
+            (item["conversation_id"],),
+        )
+        return item
+
+    @app.get("/api/tasks")
+    async def list_tasks():
+        return [
+            task_record(t["id"]) for t in store.query("SELECT id FROM tasks ORDER BY updated DESC")
+        ]
+
+    @app.post("/api/tasks", status_code=201)
+    async def create_task(body: TaskCreate):
+        if not body.title.strip() or not body.objective.strip():
+            raise ValueError("Give the task a title and an objective")
+        task_id, conv_id, created = uid(), uid(), now()
+        with store.tx() as db:
+            db.execute(
+                "INSERT INTO conversations VALUES(?,?,?)", (conv_id, body.title.strip(), created)
+            )
+            db.execute(
+                "INSERT INTO tasks VALUES(?,?,?,?,?,?,?,?,?)",
+                (
+                    task_id,
+                    body.title.strip(),
+                    body.objective.strip(),
+                    body.category,
+                    "open",
+                    "[]",
+                    conv_id,
+                    created,
+                    created,
+                ),
+            )
+        return task_record(task_id)
+
+    @app.patch("/api/tasks/{task_id}")
+    async def edit_task(task_id: str, body: TaskEdit):
+        task_record(task_id)
+        updates = body.model_dump(exclude_none=True)
+        if any(isinstance(v, str) and not v.strip() for v in updates.values()):
+            raise ValueError("Task fields cannot be blank")
+        if "steps" in updates:
+            updates["steps"] = json.dumps(updates["steps"])
+        if updates:
+            updates["updated"] = now()
+            store.execute(
+                "UPDATE tasks SET " + ",".join(k + "=?" for k in updates) + " WHERE id=?",
+                (*updates.values(), task_id),
+            )
+        return task_record(task_id)
+
+    @app.post("/api/tasks/{task_id}/start", status_code=202)
+    async def start_task(task_id: str, body: TaskStart):
+        item = task_record(task_id)
+        if item["status"] == "done":
+            raise HTTPException(409, "Reopen this task before continuing")
+        result = await chat(
+            item["conversation_id"],
+            Chat(
+                message=f"Help me make progress on this saved task: {item['title']}\n\n{item['objective']}\n\nSaved checklist: {json.dumps(item['steps'])}\n\nUse a plan for complex work. Use existing conversation results and completed steps before doing more work.",
+                **body.model_dump(),
+            ),
+        )
+        return {**result, "conversation_id": item["conversation_id"]}
+
     @app.post("/api/conversations", status_code=201)
     async def new_conversation(body: Title):
         item = {"id": uid(), "title": body.title, "created": now()}
@@ -198,7 +297,12 @@ def create_app(data_dir=None, transport=None):
                 count = db.execute(
                     "SELECT COUNT(*) FROM messages WHERE conversation_id=?", (conversation_id,)
                 ).fetchone()[0]
-                if not count:
+                if (
+                    not count
+                    and not db.execute(
+                        "SELECT id FROM tasks WHERE conversation_id=?", (conversation_id,)
+                    ).fetchone()
+                ):
                     db.execute(
                         "UPDATE conversations SET title=? WHERE id=?",
                         (body.message[:60], conversation_id),
@@ -294,6 +398,8 @@ def create_app(data_dir=None, transport=None):
             ".yml",
             ".js",
             ".css",
+            ".ics",
+            ".eml",
         ):
             raise ValueError("Upload a text, code, CSV, JSON or PDF file (up to 5 MB)")
         content = await file.read(5_000_001)
@@ -322,10 +428,25 @@ def create_app(data_dir=None, transport=None):
         return {"ok": True}
 
     static = Path(__file__).parent / "static"
-    app.mount("/static", StaticFiles(directory=static), name="static")
+    app.mount("/assets", StaticFiles(directory=static), name="assets")
 
     @app.get("/")
     async def index():
+        return FileResponse(static / "index.html")
+
+    @app.get("/{page}.html")
+    async def page(page: str):
+        if page not in (
+            "index",
+            "chat",
+            "tasks",
+            "create",
+            "library",
+            "skills",
+            "connections",
+            "settings",
+        ):
+            raise HTTPException(404, "Page not found")
         return FileResponse(static / "index.html")
 
     return app

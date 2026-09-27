@@ -3,9 +3,9 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "buns-agent"
-version = "0.1.0"
-description = "Buns: a local-first AI workspace and cost-aware agent orchestrator"
+name = "static-ai-workspace"
+version = "0.2.0"
+description = "Static: a local-first AI workspace and cost-aware agent orchestrator"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
@@ -17,11 +17,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "pytest-asyncio>=0.24,<2", "ruff>=0.11,<1"]
 [project.scripts]
-buns = "buns.cli:main"
+static-ai = "static_ai.cli:main"
 [tool.setuptools.packages.find]
-include = ["buns*"]
+include = ["static_ai*"]
 [tool.setuptools.package-data]
-buns = ["static/*"]
+static_ai = ["static/*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

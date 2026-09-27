@@ -1,6 +1,6 @@
 # Security and operating boundaries
 
-Buns 0.1 is a single-user personal workspace. Bind to `127.0.0.1` by default. For access over a network, the CLI requires a random token of at least 24 characters; restrict `BUNS_ALLOWED_HOSTS`, use HTTPS through a trusted reverse proxy and keep the service private. All API routes, artifacts and settings share that token. There are no independent user accounts or tenant isolation. Do not host this as a public anonymous service.
+Static 0.2 is a single-user personal workspace. Bind to `127.0.0.1` by default. For access over a network, the CLI requires a random token of at least 24 characters; restrict `STATIC_ALLOWED_HOSTS`, use HTTPS through a trusted reverse proxy and keep the service private. All API routes, artifacts and settings share that token. There are no independent user accounts or tenant isolation. Do not host this as a public anonymous service.
 
 External websites/files are untrusted evidence. The coordinator is instructed not to treat them as instructions, and sensitive capabilities are structurally absent: no shell execution, payment handling, authenticated browser sessions or messaging. Prompt instructions alone are not a security sandbox. Do not enable tools that expand these boundaries without a stronger isolation design.
 
@@ -14,3 +14,7 @@ External websites/files are untrusted evidence. The coordinator is instructed no
 - Replicate job IDs are durable, but downloads can fail after provider URLs expire. Keep the service running through generation and download important outputs.
 
 If reporting a problem, omit API keys, access tokens, `.env`, databases, personal prompts and generated files. Share a minimal reproduction and the relevant error class. Rotate any accidentally exposed provider key immediately.
+
+The public GitHub Pages preview contains only UI code and fictional example data. Its browser-local uploads/preferences are not synchronized to a server. Do not place provider keys in it. Static does not render uploaded HTML/SVG as active documents; downloads are attachments and text previews use textContent. The reset action affects only preview storage.
+
+Existing BUNS_AUTH_TOKEN and BUNS_ALLOWED_HOSTS environment variables remain fallbacks during migration; STATIC_ equivalents take precedence. The SQLite backup migration retains the legacy database. Protect both copies with the same filesystem controls.

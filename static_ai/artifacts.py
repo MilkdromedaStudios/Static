@@ -66,6 +66,8 @@ class Artifacts:
             ".yml",
             ".js",
             ".css",
+            ".ics",
+            ".eml",
         ):
             raise ValueError("Read supports UTF-8 text and the first 20 pages of text PDFs")
         return data.decode("utf-8", errors="replace")[:30000]

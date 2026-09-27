@@ -3,7 +3,7 @@
 .env
 .env.*
 data
-buns-data
+static-data
 __pycache__
 .pytest_cache
 .ruff_cache
@@ -11,3 +11,6 @@ test-results
 *.db
 *.db-shm
 *.db-wal
+
+site
+node_modules

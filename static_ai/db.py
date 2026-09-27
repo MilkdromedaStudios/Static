@@ -34,6 +34,8 @@ class Store:
             CREATE TABLE IF NOT EXISTS charges(id TEXT PRIMARY KEY,run_id TEXT,amount REAL,kind TEXT,status TEXT,created TEXT);
             CREATE TABLE IF NOT EXISTS media_jobs(id TEXT PRIMARY KEY,run_id TEXT,conversation_id TEXT,prediction_id TEXT,kind TEXT,status TEXT,output TEXT,error TEXT,created TEXT);
             CREATE TABLE IF NOT EXISTS cache(key TEXT PRIMARY KEY,value TEXT,expires REAL);
+            CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY,title TEXT,objective TEXT,category TEXT,status TEXT,steps TEXT,conversation_id TEXT,created TEXT,updated TEXT);
+            CREATE INDEX IF NOT EXISTS tasks_conversation ON tasks(conversation_id);
             """)
 
     @contextmanager

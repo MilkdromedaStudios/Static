@@ -217,9 +217,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Buns private runtime state
+# Static private runtime state
 /data/
-/buns-data/
+/static-data/
 .env
 .env.*
 !.env.example
@@ -233,3 +233,9 @@ playwright-report/
 test-results/
 
 node_modules/
+
+# Exported preview (reproducible with scripts/build_preview.py)
+site/
+
+# Legacy installation data
+/buns-data/

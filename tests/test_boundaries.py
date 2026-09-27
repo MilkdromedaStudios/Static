@@ -8,10 +8,10 @@ from conftest import new_chat, wait_run
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from buns.app import create_app
-from buns.config import Model, Settings
-from buns.db import Store, now
-from buns.network import fetch_public, public_address
+from static_ai.app import create_app
+from static_ai.config import Model, Settings
+from static_ai.db import Store, now
+from static_ai.network import fetch_public, public_address
 
 
 def test_cost_gate_blocks_before_paid_request(workspace):
@@ -108,7 +108,7 @@ async def test_dns_pinning_and_redirect_validation(monkeypatch):
 
     original = httpx.AsyncClient
     monkeypatch.setattr(
-        "buns.network.httpx.AsyncClient",
+        "static_ai.network.httpx.AsyncClient",
         lambda **kwargs: original(**kwargs, transport=httpx.MockTransport(handle)),
     )
     with pytest.raises(ValueError, match="Private"):
@@ -117,8 +117,8 @@ async def test_dns_pinning_and_redirect_validation(monkeypatch):
 
 
 def test_cors_auth_and_download_boundaries(tmp_path, monkeypatch):
-    monkeypatch.setenv("BUNS_AUTH_TOKEN", "a-long-test-token-for-private-workspace")
-    monkeypatch.setenv("BUNS_ALLOWED_HOSTS", "testserver")
+    monkeypatch.setenv("STATIC_AUTH_TOKEN", "a-long-test-token-for-private-workspace")
+    monkeypatch.setenv("STATIC_ALLOWED_HOSTS", "testserver")
     app = create_app(tmp_path)
     with TestClient(app) as c:
         assert c.get("/").status_code == 200
@@ -126,7 +126,7 @@ def test_cors_auth_and_download_boundaries(tmp_path, monkeypatch):
         auth = {"Authorization": "Bearer a-long-test-token-for-private-workspace"}
         assert c.get("/api/conversations", headers=auth).status_code == 200
         assert c.post("/api/conversations", headers=auth, json={}).status_code == 403
-        headers = {**auth, "X-Buns-Client": "web", "Origin": "https://evil.example"}
+        headers = {**auth, "X-Static-Client": "web", "Origin": "https://evil.example"}
         assert c.post("/api/conversations", headers=headers, json={}).status_code == 403
         assert c.get("/api/health", headers={**auth, "Host": "evil.example"}).status_code == 400
         assert "script-src 'self'" in c.get("/").headers["content-security-policy"]
@@ -146,7 +146,7 @@ def test_settings_are_validated_and_never_expose_env(workspace, monkeypatch):
 
 
 def test_server_restart_interrupts_ambiguous_work(tmp_path, monkeypatch):
-    monkeypatch.setenv("BUNS_ALLOWED_HOSTS", "testserver")
+    monkeypatch.setenv("STATIC_ALLOWED_HOSTS", "testserver")
     app = create_app(tmp_path)
     app.state.store.execute(
         "INSERT INTO runs VALUES(?,?,?,?,?,?,?,?,?)",
@@ -176,8 +176,8 @@ def test_upload_size_and_extension_rejected(workspace):
 
 
 async def test_search_cache_avoids_duplicate_fetches(workspace, monkeypatch):
-    from buns.skills.base import Context
-    from buns.skills.web import Search, search
+    from static_ai.skills.base import Context
+    from static_ai.skills.web import Search, search
 
     client, app, provider = workspace
     calls = []
@@ -190,7 +190,7 @@ async def test_search_cache_avoids_duplicate_fetches(workspace, monkeypatch):
             "text/html",
         )
 
-    monkeypatch.setattr("buns.skills.web.fetch_public", fetch)
+    monkeypatch.setattr("static_ai.skills.web.fetch_public", fetch)
     engine = app.state.engine
     ctx = Context(
         "run",
@@ -208,13 +208,13 @@ async def test_search_cache_avoids_duplicate_fetches(workspace, monkeypatch):
 
 
 def test_model_outage_is_actionable(tmp_path, monkeypatch):
-    monkeypatch.setenv("BUNS_ALLOWED_HOSTS", "testserver")
+    monkeypatch.setenv("STATIC_ALLOWED_HOSTS", "testserver")
 
     def fail(request):
         raise httpx.ConnectError("offline")
 
     app = create_app(tmp_path, httpx.MockTransport(fail))
-    with TestClient(app, headers={"X-Buns-Client": "web"}) as c:
+    with TestClient(app, headers={"X-Static-Client": "web"}) as c:
         _, run = new_chat(c)
         result = wait_run(c, run)
         assert result["status"] == "failed" and "Start Ollama" in result["error"]

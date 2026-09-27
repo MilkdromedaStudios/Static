@@ -93,7 +93,7 @@ class MediaService:
         return {
             "job_id": job_id,
             "status": "starting",
-            "note": "Job submitted. Track it in Files; Buns will download the output when it finishes.",
+            "note": "Job submitted. Track it in Files; Static will download the output when it finishes.",
         }
 
     async def refresh(self):

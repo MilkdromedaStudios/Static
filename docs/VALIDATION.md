@@ -1,17 +1,15 @@
-# Validation for 0.1.0
+# Validation for Static 0.2.0
 
-Checked during the initial build:
+Checked during the rebrand and workflow update:
 
-- **30 backend tests passed** on Python 3.12. They exercise the actual FastAPI app and SQLite store against a deterministic HTTP model/media provider. Covered flows include chat persistence, file and PDF/DOCX generation, safe downloads, upload scope, specialist delegation, real OBJ mesh outputs, one-use media approval, denial, cancellation, local-only mode, step limits, budget race protection, source caching and request boundaries.
-- **Real Chromium browser workflow passed** at desktop and mobile sizes: navigation, connection test, skill toggles, a coordinator/tool/final-answer run, file download, reload/reopen persisted chat, file gallery and horizontal-overflow checks. No page JavaScript errors were observed. The test provider is separate from the production code.
-- Desktop and phone screenshots were inspected; the workspace screenshot in this repository is from the running application.
-- Python lint/format checks, JavaScript syntax checking and Git whitespace checks passed.
-- A wheel was built and checked for all static UI assets. Locked dependencies and that wheel installed successfully into a clean Python environment; the installed app initialized correctly.
+- **37 backend tests pass on Python 3.12.** The actual FastAPI app and SQLite store run against deterministic model/media HTTP providers. Coverage includes chat persistence, tool orchestration, file/PDF/Word exports, scoped uploads, real OBJ geometry, specialist routing, one-use approvals, denial, cancellation, local-only mode, limits, atomic budget reservations, web request boundaries and source caching.
+- New regression cases cover saved goals/checklists and completion/reopen, calendar timezone conversion/escaping/UTF-8 folding, unsent email exports and header injection rejection, scoped finite CSV analysis, preference context, legacy database/auth migration, page entry points and explicit preview builds.
+- **The Chromium end-to-end suite passes for both live and preview modes.** It tests real model-settings requests against the isolated fixture, 13 skill toggles, coordinator/tool/final-answer flow, file downloads, reload persistence, saved-task execution, eight Pages routes at a repository subpath, preview approvals, file/text previews, search, persistent preferences, safe text rendering, light/dark themes and phone navigation. Both themes are checked for horizontal overflow across all eight pages at 390 × 844.
+- Preview network requests are asserted to contain only its own static assets. No `/api/` or third-party requests are made by its interactions. No JavaScript page errors were observed.
+- Desktop light/dark and phone screenshots were inspected. `docs/static-light.png` and `docs/static-dark.png` show the interactive preview with fictional sample content; `docs/static-mobile-dark.png` shows the phone layout after the test interactions.
+- A clean wheel build includes every static asset and excludes the legacy Python package.
+- Python lint/format, JavaScript syntax, and Git whitespace checks are included in the verification workflow. GitHub Actions runs the backend on Python 3.11, 3.12 and 3.13, and saves browser screenshots as artifacts.
 
-Not claimed by these checks:
+These checks use no real model keys and incur no provider charges. They do not establish live AI answer quality, model speed, provider availability or paid image/video/3D generation quality. Public-web parsing and DNS/redirect restrictions have contract tests; live public sites can block or rate-limit requests. Windows/macOS launch and a local Docker build/run were not exercised in this environment.
 
-- Live AI answer quality, local model performance, and paid image/video/3D provider behavior. No real API keys or paid calls were used.
-- Live public web retrieval in this restricted build environment. Public-network DNS was unavailable to the hardened direct-fetch client. Search/parser/IP/redirect behavior is covered by tests, but live sites may block requests.
-- A local Docker build/run or Windows/macOS launch. Recipes and launch scripts are included; CI covers additional Python versions when GitHub Actions runs.
-
-Provider error messages, setup steps and these boundaries are documented so deployment failures are actionable rather than silently replaced with demo output.
+GitHub Pages publication is a separate deployment status. The build workflow produces a downloadable preview even when Pages is disabled. The URL is live only after the repository enables Pages with GitHub Actions and a deploy job succeeds. See `PREVIEW.md`.

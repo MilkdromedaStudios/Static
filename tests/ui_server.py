@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import httpx  # noqa: E402
 import uvicorn  # noqa: E402
 
-from buns.app import create_app  # noqa: E402
+from static_ai.app import create_app  # noqa: E402
 
 
 def respond(request):
@@ -54,8 +54,8 @@ def respond(request):
 
 
 if __name__ == "__main__":
-    os.environ.pop("BUNS_AUTH_TOKEN", None)
-    os.environ["BUNS_ALLOWED_HOSTS"] = "127.0.0.1,localhost"
-    with tempfile.TemporaryDirectory(prefix="buns-ui-test-") as root:
+    os.environ.pop("STATIC_AUTH_TOKEN", None)
+    os.environ["STATIC_ALLOWED_HOSTS"] = "127.0.0.1,localhost"
+    with tempfile.TemporaryDirectory(prefix="static_ai-ui-test-") as root:
         app = create_app(root, httpx.MockTransport(respond))
         uvicorn.run(app, host="127.0.0.1", port=8765)

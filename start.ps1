@@ -10,5 +10,5 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not create the virtual environment.' }
 & '.\.venv\Scripts\python.exe' -m pip install -r requirements.lock
 if ($LASTEXITCODE -ne 0) { throw 'Could not install dependencies.' }
 & '.\.venv\Scripts\python.exe' -m pip install --no-deps -e .
-if ($LASTEXITCODE -ne 0) { throw 'Could not install Buns.' }
-& '.\.venv\Scripts\python.exe' -m buns @args
+if ($LASTEXITCODE -ne 0) { throw 'Could not install Static.' }
+& '.\.venv\Scripts\python.exe' -m static_ai @args

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f8fa" />
+    <meta
+      name="description"
+      content="Static is your personal AI workspace. Turn ideas into finished work, keep goals moving, and create something new."
+    />
+    <title>Static — A little less to do.</title>
+    <link rel="icon" type="image/svg+xml" href="./assets/static.svg" />
+    <link rel="stylesheet" href="./assets/style.css" />
+    <script src="./assets/runtime.js"></script>
+    <script src="./assets/theme.js"></script>
+    <script type="module" src="./assets/app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <button
+      class="sidebar-shade"
+      id="sidebar-shade"
+      aria-label="Close navigation"
+      hidden
+    ></button>
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <a class="brand" href="./index.html" data-page="home"
+        ><img src="./assets/static.svg" width="34" height="34" alt="" /><span
+          >Static<span class="brand-period">.</span></span
+        ></a
+      >
+      <button class="new-chat" id="new-chat">
+        <span data-icon="plus"></span>New conversation<span class="key-hint"
+          >N</span
+        >
+      </button>
+      <nav class="primary-nav">
+        <a href="./index.html" data-page="home"
+          ><span data-icon="home"></span>Home</a
+        >
+        <a href="./tasks.html" data-page="tasks"
+          ><span data-icon="check-square"></span>Tasks<span
+            class="nav-count"
+            id="task-count"
+            >0</span
+          ></a
+        >
+        <a href="./create.html" data-page="create"
+          ><span data-icon="sparkles"></span>Create</a
+        >
+        <a href="./library.html" data-page="library"
+          ><span data-icon="folder"></span>Library</a
+        >
+      </nav>
+      <div class="nav-label">YOUR WORKSPACE</div>
+      <nav class="secondary-nav">
+        <a href="./skills.html" data-page="skills"
+          ><span data-icon="grid"></span>Skills</a
+        >
+        <a href="./connections.html" data-page="connections"
+          ><span data-icon="plug"></span>Connections</a
+        >
+        <a href="./settings.html" data-page="settings"
+          ><span data-icon="settings"></span>Settings</a
+        >
+      </nav>
+      <div class="recents-heading">
+        <div class="nav-label">RECENT CONVERSATIONS</div>
+        <button
+          class="icon-button"
+          id="search-open"
+          aria-label="Search workspace"
+        >
+          <span data-icon="search"></span>
+        </button>
+      </div>
+      <div id="recent" class="recent-list"></div>
+      <div class="sidebar-bottom">
+        <div class="economy-card">
+          <span class="status-dot"></span>
+          <div>
+            <strong id="connection-label">Local first. More possible.</strong
+            ><small id="budget-label">Keep a little more in your pocket.</small>
+          </div>
+          <span data-icon="leaf"></span>
+        </div>
+        <div class="profile">
+          <span class="avatar" id="avatar">S</span>
+          <div>
+            <strong id="profile-name">Personal workspace</strong
+            ><small>Your space to get things done</small>
+          </div>
+          <button
+            id="theme-toggle"
+            class="icon-button"
+            aria-label="Switch to dark mode"
+          >
+            <span data-icon="moon"></span>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="breadcrumb">
+          <button
+            class="icon-button mobile-menu"
+            id="menu"
+            aria-label="Open navigation"
+            aria-expanded="false"
+          >
+            <span data-icon="menu"></span></button
+          ><span class="breadcrumb-workspace"
+            >Your workspace<span class="slash">/</span></span
+          ><span id="page-label">Home</span>
+        </div>
+        <div class="topbar-actions">
+          <span class="preview-badge" id="preview-badge" hidden
+            ><span class="status-dot"></span>Interactive preview</span
+          ><button
+            class="icon-button"
+            id="search-top"
+            aria-label="Search conversations and tasks"
+          >
+            <span data-icon="search"></span></button
+          ><a
+            href="https://github.com/MilkdromedaStudios/Static"
+            class="icon-button"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Static on GitHub"
+            ><span data-icon="github"></span
+          ></a>
+        </div>
+      </header>
+      <main id="main" tabindex="-1">
+        <div class="loading-state">Getting your workspace ready…</div>
+      </main>
+      <footer class="app-footer">
+        <span>Less busywork. More you.</span
+        ><span id="runtime-label">Static · Your personal AI workspace</span>
+      </footer>
+    </div>
+    <dialog id="modal">
+      <div class="modal-head">
+        <h2 id="modal-title"></h2>
+        <button class="icon-button" id="modal-close" aria-label="Close dialog">
+          <span data-icon="x"></span>
+        </button>
+      </div>
+      <div id="modal-content"></div>
+    </dialog>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <input
+      type="file"
+      id="upload"
+      accept=".txt,.md,.json,.csv,.pdf,.py,.html,.obj,.yaml,.yml,.js,.css,.ics,.eml"
+      hidden
+    />
+    <noscript><p>Enable JavaScript to use the Static workspace.</p></noscript>
+  </body>
+</html>

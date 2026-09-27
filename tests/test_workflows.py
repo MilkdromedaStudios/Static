@@ -160,7 +160,7 @@ def test_media_approval_is_one_use_and_outputs_are_downloaded(workspace, monkeyp
     async def fake_download(url, limit):
         return url, b"fake-image-for-contract-test", "image/png"
 
-    monkeypatch.setattr("buns.media.fetch_public", fake_download)
+    monkeypatch.setattr("static_ai.media.fetch_public", fake_download)
     assert client.post("/api/media/refresh").status_code == 200
     assert client.get("/api/media").json()[0]["status"] == "succeeded"
     assert len(client.get("/api/artifacts").json()) == 1

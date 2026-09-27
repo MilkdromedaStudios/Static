@@ -5,7 +5,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from buns.app import create_app
+from static_ai.app import create_app
 
 
 class ScriptedProvider:
@@ -56,11 +56,11 @@ class ScriptedProvider:
 
 @pytest.fixture
 def workspace(tmp_path, monkeypatch):
-    monkeypatch.setenv("BUNS_ALLOWED_HOSTS", "testserver,localhost,127.0.0.1")
-    monkeypatch.delenv("BUNS_AUTH_TOKEN", raising=False)
+    monkeypatch.setenv("STATIC_ALLOWED_HOSTS", "testserver,localhost,127.0.0.1")
+    monkeypatch.delenv("STATIC_AUTH_TOKEN", raising=False)
     provider = ScriptedProvider()
     app = create_app(tmp_path, httpx.MockTransport(provider))
-    with TestClient(app, headers={"X-Buns-Client": "web"}) as client:
+    with TestClient(app, headers={"X-Static-Client": "web"}) as client:
         yield client, app, provider
 
 
