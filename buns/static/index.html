@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f5f0"><title>Buns — A little help. A lot of possibility.</title><link rel="icon" href="/static/bun.svg" type="image/svg+xml"><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="/" aria-label="Buns home"><img src="/static/bun.svg" alt="" width="38" height="38"><span>Buns<span class="brand-dot">.</span></span><small>LABS</small></a>
+    <button class="new-task" id="new-chat"><span>+</span> New conversation <kbd>⌘ K</kbd></button>
+    <p class="nav-label">YOUR WORKSPACE</p>
+    <nav aria-label="Main navigation">
+      <button class="nav-item active" data-view="chat"><span data-icon="chat"></span>Workspace</button>
+      <button class="nav-item" data-view="files"><span data-icon="folder"></span>Files & creations<span id="file-count" class="count">0</span></button>
+      <button class="nav-item" data-view="skills"><span data-icon="grid"></span>Skills<span class="nav-tag">10</span></button>
+      <button class="nav-item" data-view="settings"><span data-icon="sliders"></span>Connections</button>
+    </nav>
+    <div class="recent-heading"><p class="nav-label">RECENT CONVERSATIONS</p><span>↗</span></div>
+    <div id="recent" class="recent"><p class="empty-small">A fresh start. Your conversations will live here.</p></div>
+    <div class="sidebar-bottom">
+      <div class="budget-card"><div><span class="dot green"></span> A little goes a long way<span data-icon="leaf"></span></div><p><strong id="daily-spend">$0.00</strong><span id="daily-budget">of $2.00 today</span></p><progress id="budget-bar" max="2" value="0"></progress><small>Estimated API spend · resets at UTC midnight</small></div>
+      <button class="profile" data-view="settings"><span class="avatar">Y</span><span>Your workspace<small>Local first. Yours to keep.</small></span><span>⚙</span></button>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div class="breadcrumb"><button id="menu" class="icon-button mobile-only" aria-label="Toggle navigation">☰</button><span data-icon="home"></span><span>Workspace</span><span class="slash">/</span><strong id="page-title">New conversation</strong></div><div class="header-actions"><button class="connection-pill" id="connection-status" data-view="settings"><span class="dot amber"></span><span id="connection-label">Connect a model</span></button><button id="activity-toggle" class="icon-button" aria-label="Toggle activity panel" data-icon="activity"></button></div></header>
+    <div class="workspace" id="workspace">
+      <section id="chat-view" class="chat-view">
+        <div class="conversation-scroll" id="conversation-scroll">
+          <div class="welcome" id="welcome">
+            <div class="hello-pill"><span class="dot green"></span> SMALL AGENTS. BIG POSSIBILITIES.</div>
+            <div class="hero-mark"><img src="/static/bun.svg" alt="Buns" width="66" height="66"><span class="spark spark-one">✳</span><span class="spark spark-two">✧</span></div>
+            <h1>A little help.<br><em>A lot of possibility.</em></h1>
+            <p class="intro">Meet Buns, your AI workspace for curious ideas and getting things done.<br> Bring a goal. We’ll work through it together.</p>
+            <div class="starter-grid">
+              <button class="starter" data-prompt="Research three practical ways to make my home office more comfortable on a small budget. Use sources and make a plan."><span class="tile-icon peach" data-icon="globe"></span><strong>Follow your curiosity</strong><span>Research the web, connect the dots</span><b>↗</b></button>
+              <button class="starter" data-prompt="Help me create a short project brief. Ask me what the project is, then make a downloadable Word document."><span class="tile-icon lavender" data-icon="file"></span><strong>Make something useful</strong><span>From a first idea to a finished file</span><b>↗</b></button>
+              <button class="starter" data-prompt="Help me compare affordable mechanical keyboards. Ask my budget and preferences, then research real offers including shipping."><span class="tile-icon sage" data-icon="bag"></span><strong>Find more for less</strong><span>Compare options, keep costs in mind</span><b>↗</b></button>
+              <button class="starter" data-prompt="Create a smooth sphere as an OBJ 3D model I can download, then explain how to import it into Blender."><span class="tile-icon yellow" data-icon="cube"></span><strong>Give an idea shape</strong><span>Build a 3D model, image, or video</span><b>↗</b></button>
+            </div>
+          </div>
+          <div id="messages" class="messages" aria-live="polite"></div>
+          <div id="run-banner" class="run-banner hidden"></div>
+          <div id="approval-panel"></div>
+        </div>
+        <div class="composer-wrap">
+          <div id="attachments" class="attachments"></div>
+          <form id="composer" class="composer">
+            <label class="sr-only" for="prompt">Message Buns</label><textarea id="prompt" rows="2" placeholder="Ask Buns to research, create, or figure something out…" maxlength="16000"></textarea>
+            <div class="composer-toolbar"><div><button type="button" id="attach" class="icon-button" aria-label="Attach a file" data-icon="clip"></button><span class="toolbar-divider"></span><label class="mode-select"><span data-icon="leaf"></span><select id="mode" aria-label="Model routing"><option value="economy">Economy</option><option value="local">Local models only</option></select></label></div><div><span class="enter-hint">Enter to send</span><button type="button" id="stop" class="stop-button hidden">Stop</button><button type="submit" id="send" class="send-button" aria-label="Send message">↑</button></div></div>
+          </form>
+          <p class="composer-note"><span data-icon="shield"></span> You’re in control. Paid media asks first. Shopping ends at your checkout.</p>
+          <input type="file" id="file-input" class="hidden" accept=".txt,.md,.json,.csv,.pdf,.py,.html,.obj,.yaml,.yml,.js,.css">
+        </div>
+      </section>
+      <aside class="activity-panel" id="activity-panel"><div class="activity-header"><span data-icon="activity"></span><h2>Behind the scenes</h2><span class="dot green"></span></div><p class="panel-subtitle">A small team, working toward your goal.</p><div class="agent-card coordinator"><div class="agent-icon"><img src="/static/bun.svg" alt="" width="28" height="28"></div><div><strong>Buns</strong><small>Your coordinator</small></div><span class="agent-state" id="agent-state">Ready</span></div><div class="team-label">SPECIALISTS ON CALL</div><div class="specialist"><span class="mini-icon peach" data-icon="globe"></span><div><strong>Researcher</strong><small>Connects evidence & ideas</small></div><span class="muted-dot">●</span></div><div class="specialist"><span class="mini-icon lavender" data-icon="pen"></span><div><strong>Creator</strong><small>Writes, plans & builds</small></div><span class="muted-dot">●</span></div><div class="rail-divider"></div><div class="section-row"><h3>Task plan</h3><span id="plan-count">—</span></div><div id="plan" class="plan"><p class="empty-small">Big tasks become small steps.<br>Your plan will appear here.</p></div><div class="section-row"><h3>Activity</h3><span id="run-cost">$0.00</span></div><div id="events" class="events"><div class="idle-event"><span class="ring"></span>Ready when you are.</div></div><div class="rail-footer"><span data-icon="leaf"></span><p>Thoughtful with your budget.<br><strong>Economy picks the cheapest eligible model.</strong></p></div></aside>
+    </div>
+    <section id="files-view" class="page-view hidden"><div class="page-heading"><div><p class="eyebrow">MADE WITH BUNS</p><h1>Files & creations</h1><p>Your documents, models, and generated media. All in one place.</p></div><button class="secondary" id="refresh-files">Refresh jobs</button></div><div id="media-jobs"></div><div id="file-grid" class="file-grid"></div></section>
+    <section id="skills-view" class="page-view hidden"><div class="page-heading"><div><p class="eyebrow">A GROWING TOOLBOX</p><h1>A skill for the next step.</h1><p>Choose what Buns can use. Add your own skills in Python.</p></div></div><div id="skill-grid" class="skill-grid"></div></section>
+    <section id="settings-view" class="page-view hidden"><div class="page-heading"><div><p class="eyebrow">YOUR AI, YOUR WAY</p><h1>Connections & controls</h1><p>Start local. Connect other models when you need them.</p></div><button id="save-settings" class="primary">Save changes</button></div><div class="settings-intro"><span data-icon="leaf"></span><div><strong>The most affordable starting point: your own computer.</strong><p>Install Ollama, run <code>ollama pull qwen3:4b</code>, then test the local connection below. Local models have no per-token API fee; hardware and electricity still apply.</p></div></div><div class="settings-section"><div class="section-row"><h2>Language models</h2><button class="secondary" id="add-model">＋ Add connection</button></div><p class="muted">Buns routes each role to the lowest configured token cost. Model support and answer quality vary.</p><div id="model-list"></div></div><div class="settings-section"><h2>Spending limits</h2><div class="form-grid"><label>Daily budget · USD<input id="daily-limit" type="number" min="0" max="1000" step="0.01"></label><label>Budget per task · USD<input id="run-limit" type="number" min="0" max="100" step="0.01"></label><label>Maximum coordinator turns<input id="step-limit" type="number" min="1" max="30"></label></div><p class="muted">Estimates use the rates you enter. Buns reserves costs before API calls; set provider-side limits too. Pending or uncertain charges remain counted.</p></div><div class="settings-section"><h2>Web search</h2><div class="form-grid"><label>Search provider<select id="search-provider"><option value="duckduckgo">DuckDuckGo · best-effort free search</option><option value="brave">Brave Search · API key required</option></select></label><label>Brave reservation per search · USD<input id="search-price" type="number" min="0" max="1" step="0.001"></label></div><p class="muted" id="brave-key"></p></div><div class="settings-section"><h2>Images, videos & AI 3D</h2><p class="muted" id="replicate-key"></p><p class="muted">Connect Replicate models using their model-specific input schema. Each generation asks for approval. For 3D models that require an image, put its public URL in the default inputs; the prompt field must match that model’s schema.</p><div id="media-profiles"></div></div><div class="settings-section"><h2>About this workspace</h2><p class="muted">Buns 0.1 · Apache 2.0 · A single-user local workspace. Chats and files stay on this server. Connected providers receive prompts and any source text Buns sends to them. API keys are read from server environment variables and never shown here.</p><a href="https://github.com/MilkdromedaStudios/Bun" target="_blank" rel="noopener noreferrer">Documentation & source ↗</a></div></section>
+  </main>
+</div>
+<div id="toast" class="toast hidden" role="status"></div>
+<dialog id="auth-dialog"><form id="auth-form"><img src="/static/bun.svg" width="50" height="50" alt=""><h2>Welcome to your workspace.</h2><p>Enter the access token configured on your Buns server.</p><label>Workspace access token<input type="password" id="access-token" required autocomplete="current-password"></label><button class="primary" type="submit">Unlock Buns</button><p id="auth-error" role="alert"></p></form></dialog>
+</body></html>

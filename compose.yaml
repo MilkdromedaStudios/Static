@@ -1,0 +1,29 @@
+services:
+  buns:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      BUNS_AUTH_TOKEN: ${BUNS_AUTH_TOKEN:?Set BUNS_AUTH_TOKEN in .env (at least 24 characters)}
+      BUNS_ALLOWED_HOSTS: ${BUNS_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      BUNS_API_KEY: ${BUNS_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      REPLICATE_API_TOKEN: ${REPLICATE_API_TOKEN:-}
+    volumes:
+      - buns-data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+  ollama:
+    image: ollama/ollama:0.34.1
+    profiles: [local]
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    # CPU by default. Configure GPU access using Ollama's platform-specific docs.
+volumes:
+  buns-data:
+  ollama-data:

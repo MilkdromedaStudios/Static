@@ -216,3 +216,20 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Buns private runtime state
+/data/
+/buns-data/
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+.venv/
+.ruff_cache/
+.pytest_cache/
+playwright-report/
+test-results/
+
+node_modules/
