@@ -5,10 +5,14 @@ import re
 import sqlite3
 from pathlib import Path
 
-from conftest import new_chat, wait_run
+import httpx
+import pytest
+from conftest import ScriptedProvider, new_chat, wait_run
 from fastapi.testclient import TestClient
 
 from static_ai.app import create_app
+from static_ai.bootstrap import ensure_local_model
+from static_ai.config import Config, Model, Settings
 from static_ai.db import Store, now
 
 
@@ -189,3 +193,91 @@ def test_preview_build_only_exports_public_assets(tmp_path):
         r"mode:\s*[\'\"]live[\'\"]",
         (Path(__file__).parents[1] / "static_ai/static/runtime.js").read_text(),
     )
+
+
+def test_api_key_first_run_needs_no_ollama(tmp_path, monkeypatch):
+    monkeypatch.setenv("STATIC_CHAT_MODEL", "tool-capable-model")
+    monkeypatch.setenv("STATIC_CHAT_BASE_URL", "https://api.example.com/v1")
+    monkeypatch.setenv("STATIC_CHAT_KEY_ENV", "STATIC_API_KEY")
+    monkeypatch.setenv("STATIC_API_KEY", "not-a-real-secret")
+    monkeypatch.setenv("STATIC_CHAT_PRICING_CONFIRMED", "true")
+    monkeypatch.setenv("STATIC_CHAT_INPUT_PER_MILLION", "1.25")
+    monkeypatch.setenv("STATIC_CHAT_OUTPUT_PER_MILLION", "2.5")
+    config = Config(tmp_path)
+    model = config.settings.models[0]
+    assert not model.local and model.model == "tool-capable-model"
+    assert model.key_env == "STATIC_API_KEY"
+    assert model.input_per_million == 1.25
+    monkeypatch.setattr(
+        "static_ai.bootstrap._installed_models",
+        lambda: (_ for _ in ()).throw(AssertionError("Tried Ollama")),
+    )
+    ensure_local_model(config)
+    monkeypatch.delenv("STATIC_API_KEY")
+    assert "not-a-real-secret" not in str(config.public())
+
+
+def test_api_key_first_run_can_chat_without_ollama(tmp_path, monkeypatch):
+    monkeypatch.setenv("STATIC_ALLOWED_HOSTS", "testserver")
+    monkeypatch.setenv("STATIC_CHAT_MODEL", "tool-capable-model")
+    monkeypatch.setenv("STATIC_CHAT_BASE_URL", "https://api.example.com/v1")
+    monkeypatch.setenv("STATIC_CHAT_PRICING_CONFIRMED", "true")
+    monkeypatch.setenv("STATIC_API_KEY", "test-api-key")
+    provider = ScriptedProvider()
+    app = create_app(tmp_path, httpx.MockTransport(provider))
+    with TestClient(app, headers={"X-Static-Client": "web"}) as client:
+        _, run = new_chat(client, "Hello from the cloud profile")
+        assert wait_run(client, run)["status"] == "completed"
+        assert client.get("/api/settings").json()["keys"]["api"] is True
+        assert "test-api-key" not in client.get("/api/settings").text
+    request = next(r for r in provider.requests if r.url.path.endswith("/chat/completions"))
+    assert str(request.url) == "https://api.example.com/v1/chat/completions"
+    assert request.headers["Authorization"] == "Bearer test-api-key"
+    assert json.loads(request.content)["model"] == "tool-capable-model"
+
+
+def test_api_key_first_run_requires_pricing_and_key(tmp_path, monkeypatch):
+    monkeypatch.setenv("STATIC_CHAT_MODEL", "model")
+    monkeypatch.setenv("STATIC_CHAT_BASE_URL", "https://api.example.com/v1")
+    monkeypatch.setenv("STATIC_CHAT_KEY_ENV", "STATIC_API_KEY")
+    monkeypatch.setenv("STATIC_API_KEY", "example")
+    monkeypatch.delenv("STATIC_CHAT_PRICING_CONFIRMED", raising=False)
+    with pytest.raises(ValueError, match="Confirm current provider pricing"):
+        Config(tmp_path)
+    monkeypatch.setenv("STATIC_CHAT_PRICING_CONFIRMED", "true")
+    monkeypatch.delenv("STATIC_API_KEY")
+    with pytest.raises(ValueError, match="Set STATIC_API_KEY"):
+        Config(tmp_path)
+
+
+def test_missing_ollama_requires_interactive_install_and_server_still_starts(tmp_path, monkeypatch):
+    config = Config(tmp_path)
+    monkeypatch.setattr("static_ai.bootstrap._installed_models", lambda: None)
+    monkeypatch.setattr("static_ai.bootstrap.shutil.which", lambda _: None)
+    monkeypatch.setattr("static_ai.bootstrap._ask", lambda _: False)
+    monkeypatch.setattr(
+        "static_ai.bootstrap._install_ollama",
+        lambda: (_ for _ in ()).throw(AssertionError("Unexpected install")),
+    )
+    ensure_local_model(config)
+
+
+def test_installed_ollama_autostarts_only_for_its_local_endpoint(tmp_path, monkeypatch):
+    config = Config(tmp_path)
+    models = iter([None, {"qwen3:4b"}])
+    monkeypatch.setattr("static_ai.bootstrap._installed_models", lambda: next(models))
+    monkeypatch.setattr("static_ai.bootstrap.shutil.which", lambda _: "/usr/bin/ollama")
+    started = []
+    monkeypatch.setattr(
+        "static_ai.bootstrap._launch_ollama",
+        lambda path, root: started.append((path, root)) or True,
+    )
+    ensure_local_model(config)
+    assert started == [("/usr/bin/ollama", tmp_path.resolve())]
+    config.settings = Settings(
+        models=[
+            Model(id="local", name="LM Studio", model="local", base_url="http://localhost:1234/v1")
+        ]
+    )
+    ensure_local_model(config)
+    assert len(started) == 1

@@ -121,11 +121,26 @@ class Config:
         self.root = root.resolve()
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = self.root / "settings.json"
-        self.settings = (
-            Settings.model_validate_json(self.path.read_text())
-            if self.path.exists()
-            else Settings()
-        )
+        if self.path.exists():
+            self.settings = Settings.model_validate_json(self.path.read_text())
+        elif env("CHAT_MODEL"):
+            # Explicit first-run API configuration. Never infer a model or its price from a key.
+            model = Model(
+                id="api",
+                name=env("CHAT_NAME", "API model"),
+                model=env("CHAT_MODEL"),
+                base_url=env("CHAT_BASE_URL", "https://api.openai.com/v1"),
+                key_env=env("CHAT_KEY_ENV", "STATIC_API_KEY"),
+                local=False,
+                pricing_confirmed=env("CHAT_PRICING_CONFIRMED").lower() == "true",
+                input_per_million=float(env("CHAT_INPUT_PER_MILLION", "0")),
+                output_per_million=float(env("CHAT_OUTPUT_PER_MILLION", "0")),
+            )
+            if not model.key_env or not os.getenv(model.key_env):
+                raise ValueError(f"Set {model.key_env or 'STATIC_CHAT_KEY_ENV'} for the API model")
+            self.settings = Settings(models=[model])
+        else:
+            self.settings = Settings()
 
     def save(self, settings: Settings):
         tmp = self.path.with_suffix(".tmp")

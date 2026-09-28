@@ -50,12 +50,11 @@ The **Publish Static preview** workflow builds on every main-branch push. It ret
 
 ## Start the Python app
 
-Install [Python 3.11+](https://www.python.org/downloads/), Git, and [Ollama](https://ollama.com/download). Keep Ollama running and download a tool-capable model:
+Get the repository with Git or download its ZIP. The launch scripts check for Python 3.11+, ask before installing it with a supported package manager, then create a virtual environment and install the locked Python dependencies:
 
 ```bash
 git clone https://github.com/MilkdromedaStudios/Static.git
 cd Static
-ollama pull qwen3:4b
 ```
 
 On **macOS / Linux**:
@@ -64,7 +63,7 @@ On **macOS / Linux**:
 bash start.sh
 ```
 
-On **Windows**, enable “Add Python to PATH” during installation, then use PowerShell:
+On **Windows**, use PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start.ps1
@@ -72,7 +71,28 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 
 The execution-policy option applies only to that launch process. Alternatively, use the manual setup below. If Git is unavailable, download the repository ZIP, extract it, and run from that directory.
 
-Open **http://127.0.0.1:8000**. In **Connections**, expand Ollama and choose **Test connection**. Local inference speed and model quality depend on your hardware. The first model download may be large. If the server cannot reach a model, it reports the error and preserves your work.
+For local AI, Static offers to install Ollama if needed. On every launch it starts an installed Ollama server when the configured model uses `localhost:11434`; if the model is missing, it asks before downloading it. The server itself still opens if you skip local setup. The scripts use WinGet on Windows, Homebrew on macOS, and supported Linux package managers or Ollama's official installer. Unsupported setups get a direct install link.
+
+Open **http://127.0.0.1:8000** and use **Connections → Test connection**. Local inference speed and model quality depend on your hardware. Model downloads may use several GB of disk space.
+
+### Use API keys instead of Ollama
+
+Copy `.env.example` to `.env` before starting. Configure a tool-capable model supported by your provider and **its actual prices**:
+
+```dotenv
+STATIC_API_KEY=your-secret-key
+STATIC_CHAT_NAME=My API model
+STATIC_CHAT_MODEL=the-model-id-in-your-account
+STATIC_CHAT_BASE_URL=https://your-provider.example/v1
+STATIC_CHAT_KEY_ENV=STATIC_API_KEY
+STATIC_CHAT_INPUT_PER_MILLION=your-verified-input-price
+STATIC_CHAT_OUTPUT_PER_MILLION=your-verified-output-price
+STATIC_CHAT_PRICING_CONFIRMED=true
+```
+
+Run `start.sh` or `start.ps1`. On a fresh workspace, Static creates a cloud model profile from those values and skips Ollama installation and startup. The `.env` file stays on your computer and is git-ignored. You can also simply set a provider key, start the app, decline the Ollama prompt, and add the model through **Connections**. Existing `data/settings.json` takes precedence over first-run variables so later changes in the UI persist.
+
+Language models use an OpenAI-compatible `/chat/completions` API; use the endpoint and exact ID your provider documents. `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, or another variable can be selected with `STATIC_CHAT_KEY_ENV`. For live images, video, and generative 3D, set `REPLICATE_API_TOKEN` and configure each media profile in Connections. Brave web search uses `BRAVE_API_KEY`. No single API key is assumed to cover every provider. API charges remain subject to the configured per-run/daily estimates and media approvals.
 
 ### Manual setup
 
@@ -111,7 +131,7 @@ Static does not log into accounts, autonomously purchase items, send messages, b
 
 ## Connect your models
 
-1. Copy `.env.example` to `.env`. Set only the provider secrets you use. The CLI loads the file; restart after changing environment variables.
+1. Copy `.env.example` to `.env`. Set only the provider secrets you use. The CLI loads the file; restart after changing environment variables. If you configured the first-run cloud profile above, it appears in Connections automatically.
 2. In **Connections → Add model**, enter a compatible base URL, exact model ID, key **environment-variable name**, and verified provider rates. Save before testing. Advanced routing assigns models to coordinator/specialist roles.
 3. In **Settings**, choose best-effort DuckDuckGo or Brave. Brave needs `BRAVE_API_KEY` and a conservative search-cost reservation. Free search can be blocked or rate limited.
 4. For media, set `REPLICATE_API_TOKEN`, then configure the image/video/3D profile in Connections with a real `owner/model` or pinned version, its actual prompt field, required default inputs, and cost reservation. Model schemas differ; consult the chosen model's documentation.
@@ -152,7 +172,7 @@ python -m ruff check static_ai tests scripts
 python -m ruff format --check static_ai tests scripts
 ```
 
-The 37 backend tests cover real FastAPI/SQLite workflows with deterministic HTTP providers: plans, exports, approvals, costs, recovery, scope, authentication, migration and request boundaries. Browser tests cover both the Python UI and the Pages export. **No paid model calls are used; these tests verify behavior and contracts, not live model quality.**
+The 42 backend tests cover real FastAPI/SQLite workflows with deterministic HTTP providers: plans, exports, approvals, costs, recovery, scope, authentication, migration and request boundaries. Browser tests cover both the Python UI and the Pages export. **No paid model calls are used; these tests verify behavior and contracts, not live model quality.**
 
 For the browser suite, install Node and Playwright:
 
@@ -174,7 +194,7 @@ GitHub Actions runs Python 3.11/3.12/3.13 checks and the browser suite, saving s
 
 | Symptom | What to check |
 |---|---|
-| Cannot reach Ollama | Start Ollama, pull the exact model, check the base URL, then test. |
+| Cannot reach Ollama | Restart Static to auto-start an installed server, or check the model/base URL and test. Choose an API-key model if preferred. |
 | Connection succeeds but tools fail | Use a model/server with function calling; match `max_tokens` or `max_completion_tokens`. |
 | Budget reached | Review rates, then adjust limits or choose local-only. Uncertain costs remain counted. |
 | Settings cannot be saved | Finish, decline or stop active runs before changing configuration. |
