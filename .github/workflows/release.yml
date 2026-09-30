@@ -30,7 +30,7 @@ jobs:
         run: |
           python -m ruff check static_ai tests scripts
           python -m ruff format --check static_ai tests scripts
-          python -m pytest -q
+          python -m pytest -q --junitxml=test-results/windows/pytest.xml
       - name: Ensure Inno Setup is available
         shell: pwsh
         run: |

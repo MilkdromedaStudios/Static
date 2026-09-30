@@ -2,7 +2,7 @@ import asyncio
 import hmac
 import json
 import sqlite3
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, closing
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -64,7 +64,7 @@ def create_app(data_dir=None, transport=None):
     target = config.root / "static.db"
     if legacy.exists() and not target.exists():
         temporary = config.root / "static-migration.tmp"
-        with sqlite3.connect(legacy) as old, sqlite3.connect(temporary) as new:
+        with closing(sqlite3.connect(legacy)) as old, closing(sqlite3.connect(temporary)) as new:
             old.backup(new)
         temporary.replace(target)
     store = Store(config.root / "static.db")

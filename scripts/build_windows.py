@@ -109,6 +109,12 @@ def main():
     shutil.copyfile(ROOT / "packaging/THIRD_PARTY_NOTICES.md", bundled / "THIRD_PARTY_NOTICES.md")
     shutil.copyfile(ROOT / "docs/WINDOWS.md", bundled / "WINDOWS.md")
     copy_licenses(bundled / "licenses")
+    python_license = Path(sys.base_prefix) / "LICENSE.txt"
+    if not python_license.is_file():
+        raise RuntimeError("The build's Python license text is missing.")
+    python_notices = bundled / "licenses/CPython"
+    python_notices.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(python_license, python_notices / "LICENSE.txt")
     release = ROOT / "release"
     release.mkdir(exist_ok=True)
     compiler = (
