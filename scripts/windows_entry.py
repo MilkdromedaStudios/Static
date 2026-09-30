@@ -11,7 +11,7 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except Exception:
         logging.exception("Static could not start")
-        if sys.platform == "win32":
+        if sys.platform == "win32" and "--smoke-test" not in sys.argv:
             ctypes.windll.user32.MessageBoxW(
                 None,
                 "Static could not start. Check desktop.log in %LOCALAPPDATA%\\StaticAI. Your saved files and chats remain in that folder.",

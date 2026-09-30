@@ -18,16 +18,24 @@ RESULTS = ROOT / "test-results/windows"
 def smoke(executable, data, name):
     report = RESULTS / name / "report.json"
     report.parent.mkdir(parents=True, exist_ok=True)
-    result = subprocess.run(
-        [str(executable), "--data-dir", str(data), "--smoke-test", str(report)],
-        timeout=130,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [str(executable), "--data-dir", str(data), "--smoke-test", str(report)],
+            timeout=130,
+            check=False,
+        )
+    finally:
+        if (data / "desktop.log").is_file():
+            shutil.copyfile(data / "desktop.log", report.parent / "desktop.log")
     if (
         result.returncode
         or not report.exists()
         or not json.loads(report.read_text(encoding="utf-8"))["ok"]
     ):
+        if report.is_file():
+            print(report.read_text(encoding="utf-8"))
+        if (data / "desktop.log").is_file():
+            print((data / "desktop.log").read_text(encoding="utf-8")[-10000:])
         raise RuntimeError(
             f"Packaged app smoke failed: {name}. See {report} and {data / 'desktop.log'}"
         )

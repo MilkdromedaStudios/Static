@@ -43,6 +43,7 @@ jobs:
       - name: Test packaged app, install, and uninstall
         env:
           QT_QPA_PLATFORM: offscreen
+          QTWEBENGINE_CHROMIUM_FLAGS: --disable-gpu
         run: python scripts/test_windows_package.py
       - name: Save Windows test evidence
         if: always()

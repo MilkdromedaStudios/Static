@@ -3,12 +3,13 @@
 import argparse
 import json
 import logging
+import os
 import sys
 import threading
 from pathlib import Path
 
 from PySide6.QtCore import QLockFile, QObject, Qt, QThread, QTimer, QUrl, Signal
-from PySide6.QtGui import QAction, QDesktopServices, QIcon
+from PySide6.QtGui import QAction, QDesktopServices, QFont, QFontDatabase, QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWebEngineCore import (
     QWebEnginePage,
@@ -156,6 +157,8 @@ class WorkspaceWindow(QMainWindow):
     def closeEvent(self, event):
         if self.is_mini:
             self.hide()
+            if not self.controller.tray_available and not self.controller.window.isVisible():
+                self.controller.show_workspace()
             event.ignore()
         elif self.controller.preferences.minimize_to_tray and self.controller.tray_available:
             self.hide()
@@ -500,6 +503,8 @@ def smoke_test(controller, report):
         controller.qt.exit(0 if success else 1)
 
     def received(value):
+        if isinstance(value, str):
+            value = json.loads(value) if value else {}
         if not value:
             return
         if not checks.get("main_loaded") and value.get("main"):
@@ -509,6 +514,13 @@ def smoke_test(controller, report):
                 not controller.window.isVisible()
                 if controller.tray_available
                 else controller.window.isMinimized()
+            )
+            controller.show_workspace()
+            controller.show_mini()
+            controller.window.hide()
+            controller.mini.close()
+            checks["mini_close_reachable"] = (
+                controller.tray_available or controller.window.isVisible()
             )
             controller.show_workspace()
             controller.show_mini()
@@ -531,6 +543,7 @@ def smoke_test(controller, report):
                         "unauthenticated_blocked",
                         "main_loaded",
                         "hide_restore",
+                        "mini_close_reachable",
                         "mini_authenticated_chat",
                     )
                 )
@@ -543,13 +556,13 @@ def smoke_test(controller, report):
             return
         if checks.get("main_loaded"):
             controller.mini.view.page().runJavaScript(
-                "({mini: Boolean(document.querySelector('#mini-prompt')), reply: Boolean(document.querySelector('.mini-message.assistant'))})",
+                "JSON.stringify({mini: Boolean(document.querySelector('#mini-prompt')), reply: Boolean(document.querySelector('.mini-message.assistant'))})",
                 0,
                 received,
             )
         else:
             controller.window.view.page().runJavaScript(
-                "({main: Boolean(document.querySelector('#main h1'))})", 0, received
+                "JSON.stringify({main: Boolean(document.querySelector('#main h1'))})", 0, received
             )
 
     timer.timeout.connect(tick)
@@ -595,6 +608,13 @@ def main():
     qt.setOrganizationName("Milkdromeda Studios")
     qt.setApplicationVersion(__version__)
     qt.setQuitOnLastWindowClosed(False)
+    qt.setWindowIcon(QIcon(str(ASSETS / "static.svg")))
+    if sys.platform == "win32":
+        font = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts/segoeui.ttf"
+        if font.is_file():
+            QFontDatabase.addApplicationFont(str(font))
+        qt.setFont(QFont("Segoe UI", 10))
+    qt.setStyleSheet("QLabel#title { font-size: 28px; font-weight: 600; padding: 8px 0; }")
     name = instance_name(root)
     command = "quit" if args.quit else "mini" if args.mini else "show"
     existing = contact_instance(name, command)
