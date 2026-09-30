@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f7f8fa" />
+    <title>Quick chat · Static</title>
+    <link rel="icon" href="./assets/static.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./assets/style.css" />
+    <link rel="stylesheet" href="./assets/mini.css" />
+    <script src="./assets/runtime.js"></script>
+    <script src="./assets/theme.js"></script>
+    <script type="module" src="./assets/mini.js"></script>
+  </head>
+  <body class="mini-body">
+    <header class="mini-header">
+      <div class="mini-brand">
+        <img src="./assets/static.svg" alt="" width="28" height="28" /><strong
+          >Static<span class="brand-period">.</span></strong
+        >
+      </div>
+      <div class="mini-actions">
+        <button id="mini-new" class="icon-button" aria-label="New quick chat">
+          <span data-icon="plus"></span></button
+        ><button id="mini-theme" class="icon-button" aria-label="Toggle theme">
+          <span data-icon="moon"></span></button
+        ><a
+          id="mini-open"
+          class="icon-button"
+          href="./chat.html"
+          aria-label="Open full conversation"
+          ><span data-icon="external"></span
+        ></a>
+      </div>
+    </header>
+    <p id="mini-model" class="mini-model">Getting ready…</p>
+    <form id="mini-unlock" class="mini-unlock" hidden>
+      <label class="field"
+        >Workspace access token<input
+          id="mini-token"
+          type="password"
+          autocomplete="off" /></label
+      ><button class="button primary" type="submit">Unlock</button>
+    </form>
+    <main
+      id="mini-messages"
+      class="mini-messages"
+      aria-label="Conversation"
+      tabindex="-1"
+    ></main>
+    <section
+      id="mini-approvals"
+      class="mini-approvals"
+      aria-label="Actions needing approval"
+    ></section>
+    <form id="mini-compose" class="mini-compose">
+      <textarea
+        id="mini-prompt"
+        rows="3"
+        maxlength="16000"
+        placeholder="What can I take off your plate?"
+        aria-label="Message Static"
+        required
+      ></textarea>
+      <div class="mini-compose-actions">
+        <select id="mini-mode" aria-label="Model routing">
+          <option value="economy">Lowest estimated cost</option>
+          <option value="local">Local models only</option></select
+        ><button id="mini-stop" type="button" class="button" hidden>Stop</button
+        ><button id="mini-send" type="submit" class="button primary">
+          Send<span data-icon="arrow-up"></span>
+        </button>
+      </div>
+    </form>
+    <p id="mini-status" class="mini-status" role="status" aria-live="polite">
+      Quick chat. Same saved workspace.
+    </p>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

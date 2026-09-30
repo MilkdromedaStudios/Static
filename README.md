@@ -50,6 +50,14 @@ The **Publish Static preview** workflow builds on every main-branch push. It ret
 
 ## Start the Python app
 
+### Windows desktop download
+
+The [latest GitHub release](https://github.com/MilkdromedaStudios/Static/releases/latest) includes a Windows installer and a portable ZIP. **Python and the desktop runtime are bundled.** First run lets you choose an API-key model, Ollama, or another local model server. API keys are saved in Windows Credential Manager; Ollama installation and model downloads ask first.
+
+Minimize or close to the tray, click the icon for compact quick chat, and use its menu to open the full workspace or quit. The app includes shortcuts, optional start at login, a Windows uninstaller, and an option to keep or delete your workspace data when uninstalling. [Windows guide and build/release instructions](docs/WINDOWS.md).
+
+### Run from source
+
 Get the repository with Git or download its ZIP. The launch scripts check for Python 3.11+, ask before installing it with a supported package manager, then create a virtual environment and install the locked Python dependencies:
 
 ```bash

@@ -1,0 +1,145 @@
+.mini-body {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-width: 300px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.mini-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 8px;
+  gap: 12px;
+}
+.mini-brand,
+.mini-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mini-brand strong {
+  font-size: 23px;
+  letter-spacing: -1px;
+}
+.mini-model {
+  margin: 0;
+  padding: 0 20px 12px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.mini-messages {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  padding: 12px 20px;
+}
+.mini-messages .mini-message {
+  margin: 0 0 18px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+  overflow-wrap: anywhere;
+}
+.mini-messages .mini-message.user {
+  margin-left: 30px;
+  background: var(--accent-faint);
+}
+.mini-message .mini-role {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 7px;
+}
+.mini-message .markdown {
+  font-size: 13px;
+}
+.mini-message .markdown pre {
+  max-width: 100%;
+  overflow: auto;
+}
+.mini-empty {
+  margin: 25px 5px;
+  text-align: center;
+  color: var(--muted);
+}
+.mini-empty h1 {
+  font-size: 26px;
+  color: var(--text);
+  letter-spacing: -1px;
+}
+.mini-empty p {
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.mini-compose {
+  margin: 10px 14px 0;
+  padding: 12px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.mini-compose textarea {
+  width: 100%;
+  resize: none;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  min-height: 52px;
+}
+.mini-compose-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.mini-compose-actions select {
+  margin-right: auto;
+  min-width: 0;
+  max-width: 195px;
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--panel);
+  border: none;
+}
+.mini-compose-actions .button {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.mini-status {
+  margin: 8px 16px 12px;
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+}
+.mini-approvals {
+  max-height: 150px;
+  overflow: auto;
+  padding: 0 16px;
+}
+.mini-approval {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+.mini-approval button {
+  margin: 6px 6px 0 0;
+}
+.mini-unlock {
+  padding: 14px;
+}
+@media (max-width: 360px) {
+  .mini-compose-actions select {
+    max-width: 145px;
+  }
+}

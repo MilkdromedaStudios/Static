@@ -32,6 +32,7 @@ Visit `http://localhost:8080`. The export also works at `/Static/` and each `.ht
 - Skills, connection examples, names, preferences and budgets persist locally.
 - Light/dark/system themes persist independently of the demo reset.
 - Search finds tasks and conversations; mobile navigation works across all pages.
+- The quick-chat button opens `mini.html`, with a compact conversation view, saved example chat, theme toggle and an expand link to the full conversation. The Windows desktop uses this same view with its live backend.
 
 The `static-preview-v2` local-storage record contains fictional seed data plus your interactions. No telemetry or external assets are loaded. The demo adapter never calls `/api/`. Preview uploads allow selected text files up to 500 KB; the Python app supports its wider upload policy. A reset in Settings restores the examples. Nothing synchronizes to the Python app.
 

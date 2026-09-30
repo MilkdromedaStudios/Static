@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+VERSION = "0.3.0"
 PAGES = ("index", "chat", "tasks", "create", "library", "skills", "connections", "settings")
 
 
@@ -17,15 +18,16 @@ def build(output: Path):
     assets.mkdir(exist_ok=True)
     source = ROOT / "static_ai" / "static"
     for path in source.iterdir():
-        if path.is_file() and path.name != "index.html":
+        if path.is_file() and path.name not in ("index.html", "mini.html"):
             shutil.copyfile(path, assets / path.name)
     (assets / "runtime.js").write_text(
-        "window.STATIC_RUNTIME = Object.freeze({ mode: 'preview', version: '0.2.0' });\n",
+        f"window.STATIC_RUNTIME = Object.freeze({{ mode: 'preview', version: '{VERSION}' }});\n",
         encoding="utf-8",
     )
     html = (source / "index.html").read_text(encoding="utf-8")
     for page in PAGES:
         (output / (page + ".html")).write_text(html, encoding="utf-8")
+    shutil.copyfile(source / "mini.html", output / "mini.html")
     (output / ".nojekyll").touch()
     # A helpful 404 with relative links; deep links always have real HTML entry points.
     (output / "404.html").write_text(

@@ -1,0 +1,80 @@
+name: Release Windows app
+on:
+  push:
+    branches: [main]
+    paths: [pyproject.toml, .github/workflows/release.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: static-windows-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build dependencies
+        run: python -m pip install -r requirements-dev.lock -r requirements-desktop.lock
+      - run: python -m pip install --no-deps -e .
+      - name: Read release version
+        id: version
+        run: python -c "import os; from scripts.build_windows import project_version; open(os.environ['GITHUB_OUTPUT'], 'a').write('version=' + project_version() + '\n')"
+      - name: Test the Python app
+        run: |
+          python -m ruff check static_ai tests scripts
+          python -m ruff format --check static_ai tests scripts
+          python -m pytest -q
+      - name: Ensure Inno Setup is available
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed.' }
+          }
+      - name: Build bundled app and installer
+        run: python scripts/build_windows.py
+      - name: Test packaged app, install, and uninstall
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python scripts/test_windows_package.py
+      - name: Save Windows test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-windows-test-results
+          path: test-results/windows/
+      - name: Upload release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-windows-release
+          path: release/
+          retention-days: 14
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: static-windows-release
+          path: release
+      - name: Publish versioned GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STATIC_VERSION: ${{ needs.build.outputs.version }}
+          STATIC_COMMIT: ${{ github.sha }}
+        run: |
+          if gh release view "v${STATIC_VERSION}" >/dev/null 2>&1; then
+            echo "Version ${STATIC_VERSION} is already released. Bump pyproject.toml and static_ai/__init__.py for a new release."
+          else
+            gh release create "v${STATIC_VERSION}" --target "${STATIC_COMMIT}" --title "Static ${STATIC_VERSION} for Windows" --notes-file release/RELEASE_NOTES.md release/*.exe release/*.zip release/SHA256SUMS.txt
+          fi

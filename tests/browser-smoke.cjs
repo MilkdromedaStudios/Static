@@ -342,8 +342,68 @@ async function waitPage(page) {
       [],
       "Preview must never send network/API requests outside its static assets",
     );
+    for (const [label, base] of [
+      ["live", live],
+      ["preview", preview],
+    ]) {
+      const miniContext = await browser.newContext({
+        viewport: { width: 440, height: 640 },
+        acceptDownloads: true,
+      });
+      const mini = await miniContext.newPage();
+      const miniErrors = [];
+      const miniRequests = [];
+      mini.on("pageerror", (e) => miniErrors.push(e.message));
+      mini.on("request", (request) => {
+        if (
+          label === "preview" &&
+          (request.url().includes("/api/") ||
+            !request.url().startsWith(base + "/"))
+        )
+          miniRequests.push(request.url());
+      });
+      await mini.goto(base + "/mini.html");
+      await mini.locator(".mini-empty h1").waitFor();
+      await mini
+        .locator("#mini-prompt")
+        .fill("Create a project plan as a Markdown file.");
+      await mini.locator("#mini-prompt").press("Enter");
+      await mini.locator(".mini-message.assistant").waitFor();
+      const fullURL = await mini.locator("#mini-open").getAttribute("href");
+      assert.match(fullURL, /chat\.html\?id=/);
+      await mini.reload();
+      await mini.locator(".mini-message.assistant").waitFor();
+      assert.equal(await mini.locator(".mini-message.user").count(), 1);
+      for (const theme of ["light", "dark"]) {
+        await mini.evaluate((t) => window.staticTheme.set(t), theme);
+        assert.equal(
+          await mini.evaluate(
+            () => document.documentElement.scrollWidth > innerWidth,
+          ),
+          false,
+        );
+        if (label === "preview")
+          await mini.screenshot({
+            path: "test-results/static-quick-chat-" + theme + ".png",
+          });
+      }
+      const full = await mini.context().newPage();
+      await full.goto(new URL(fullURL, base + "/mini.html").href);
+      await full.locator(".message.assistant").waitFor();
+      await full.close();
+      await mini.locator("#mini-new").click();
+      await mini.locator(".mini-empty h1").waitFor();
+      assert.deepEqual(miniErrors, [], "Quick chat JavaScript errors");
+      assert.deepEqual(
+        miniRequests,
+        [],
+        "Quick chat preview API/network requests",
+      );
+      await mini.close();
+      await miniContext.close();
+    }
     console.log(
-      "Browser checks passed: live model settings, 13 skills, file generation/download, persistent chats/tasks, eight Pages routes, approvals, preview persistence, no API calls, light/dark themes, mobile layout and safe rendering.",
+      "Browser checks passed: live model settings, 13 skills, file generation/download, persistent chats/tasks, eight Pages routes, approvals, preview persistence, no API calls, light/dark themes, mobile layout, safe rendering and live/preview quick chat.",
     );
     await demo.close();
   } finally {

@@ -1,4 +1,4 @@
-# Validation for Static 0.2.0
+# Validation for Static 0.3.0
 
 Checked during the rebrand and workflow update:
 
@@ -9,6 +9,8 @@ Checked during the rebrand and workflow update:
 - Desktop light/dark and phone screenshots were inspected. `docs/static-light.png` and `docs/static-dark.png` show the interactive preview with fictional sample content; `docs/static-mobile-dark.png` shows the phone layout after the test interactions.
 - A clean wheel build includes every static asset and excludes the legacy Python package.
 - Bootstrap coverage checks cloud-only first run, missing-key/pricing validation, a declined Ollama installation, local auto-start, and an unrelated local model endpoint. Installer commands are intentionally not executed by tests.
+- Four additional desktop boundary cases verify scoped credential storage without plaintext files, desktop preferences, an authenticated live loopback chat/server shutdown, and native prompts before installation. A fifth Windows-only case verifies real Credential Manager save/read/delete. The local Linux suite passes 46 tests, with that one Windows case skipped.
+- The browser suite also verifies quick chat in live/preview modes, saved conversations, expansion into the full conversation, new-chat behavior, dark/light appearance, layout and no external/API traffic from the preview.
 - Python lint/format, JavaScript syntax, and Git whitespace checks are included in the verification workflow. GitHub Actions runs the backend on Python 3.11, 3.12 and 3.13, and saves browser screenshots as artifacts.
 
 These checks use no real model keys and incur no provider charges. They do not establish live AI answer quality, model speed, provider availability or paid image/video/3D generation quality. Public-web parsing and DNS/redirect restrictions have contract tests; live public sites can block or rate-limit requests. Windows/macOS launch and a local Docker build/run were not exercised in this environment.

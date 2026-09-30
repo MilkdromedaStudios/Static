@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from . import __version__
 from .artifacts import Artifacts
 from .config import Config, Settings, StrictModel, env
 from .db import Store, now, uid
@@ -93,7 +94,7 @@ def create_app(data_dir=None, transport=None):
 
     app = FastAPI(
         title="Static",
-        version="0.2.0",
+        version=__version__,
         lifespan=lifespan,
         docs_url=None,
         redoc_url=None,
@@ -149,7 +150,7 @@ def create_app(data_dir=None, transport=None):
 
     @app.get("/api/health")
     async def health():
-        return {"ok": True, "version": "0.2.0", "auth_enabled": bool(token)}
+        return {"ok": True, "version": __version__, "auth_enabled": bool(token)}
 
     @app.get("/api/settings")
     async def settings():
@@ -436,6 +437,8 @@ def create_app(data_dir=None, transport=None):
 
     @app.get("/{page}.html")
     async def page(page: str):
+        if page == "mini":
+            return FileResponse(static / "mini.html")
         if page not in (
             "index",
             "chat",

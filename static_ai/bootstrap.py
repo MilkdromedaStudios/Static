@@ -38,7 +38,7 @@ def _installed_models():
 
 
 def _ask(question):
-    if not sys.stdin.isatty():
+    if sys.stdin is None or not sys.stdin.isatty():
         return False
     try:
         return input(question + " [y/N] ").strip().lower() in ("y", "yes")
@@ -108,6 +108,21 @@ def _install_ollama():
     return subprocess.run(command, check=False).returncode == 0
 
 
+def _ollama_binary():
+    binary = shutil.which("ollama")
+    if binary or os.name != "nt":
+        return binary
+    # WinGet can install Ollama without refreshing this process's PATH.
+    for folder, suffix in (
+        ("LOCALAPPDATA", "Programs/Ollama/ollama.exe"),
+        ("ProgramFiles", "Ollama/ollama.exe"),
+    ):
+        root = os.environ.get(folder)
+        if root and (candidate := Path(root) / suffix).is_file():
+            return str(candidate)
+    return None
+
+
 def _launch_ollama(binary, data_dir):
     log_path = Path(data_dir) / "ollama.log"
     with log_path.open("ab") as log:
@@ -128,26 +143,27 @@ def _launch_ollama(binary, data_dir):
     return False
 
 
-def ensure_local_model(config):
+def ensure_local_model(config, ask=None):
     """Start the configured local Ollama service, offering official installers if absent.
 
     Server startup never depends on Ollama. API-key model configurations skip it entirely.
     Nothing is downloaded without an interactive yes at the relevant prompt.
     """
+    ask = ask or _ask
     models = _local_ollama_models(config)
     if not models:
         return
     available = _installed_models()
-    binary = shutil.which("ollama")
+    binary = _ollama_binary()
     if available is None:
         if not binary:
             print("Ollama is not installed. You can use API keys instead in Connections.")
-            if not _ask("Install Ollama for local AI using the official installer?"):
+            if not ask("Install Ollama for local AI using the official installer?"):
                 return
             if not _install_ollama():
                 print("Ollama installation did not finish; Static can still use API-key models.")
                 return
-            binary = shutil.which("ollama")
+            binary = _ollama_binary()
             available = _installed_models()
         if available is None:
             if not binary:
@@ -168,7 +184,7 @@ def ensure_local_model(config):
             print(
                 f"Ollama is running, but {model} is missing. Install it with: ollama pull {model}"
             )
-        elif _ask(f"Download the local model {model}? This may use several GB of disk space"):
+        elif ask(f"Download the local model {model}? This may use several GB of disk space"):
             result = subprocess.run([binary, "pull", model], check=False)
             if result.returncode:
                 print(f"Model download did not finish. Retry with: ollama pull {model}")
