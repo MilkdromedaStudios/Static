@@ -7,10 +7,18 @@ Static is a **single-user, local-first Python application**, not a hosted AI ser
 1. The API saves the user message and creates one run per conversation. Up to two runs execute concurrently; up to eight can be queued/running in process.
 2. The coordinator receives the last 16 user/assistant messages and a schema for each enabled skill. Tool history is kept within the current run. It chooses its next action using native tool calling.
 3. Tool arguments are validated with Pydantic. Tools have explicit Python handlers; model output is never executed as Python or shell commands.
-4. Each model request reserves an estimated upper cost before sending. The router chooses the cheapest eligible, configured model for the requested role. Local-only mode excludes remote models and paid search/media.
+4. Each model request reserves an estimated upper cost before sending. The router chooses the cheapest eligible, configured model for the requested role. Local-only mode excludes remote models, paid search/media and remote MCP servers.
 5. A specialist receives one bounded task and reference context. It has no tools and cannot recursively delegate. Its result goes back to the coordinator, which can turn it into a file or combine it with research.
 6. A paid media call pauses the run. The approval binds to the specific arguments and media profile. Approval is consumed before submission and cannot be replayed. Declining creates a tool result without invoking the media API.
 7. The final answer and files persist. The UI polls public task events; it does **not** display private chain-of-thought or stream tokens that have not arrived.
+
+## AI sources
+
+The engine speaks OpenAI-format messages and tool calls. `providers.py` sends them unchanged to OpenAI-compatible servers, or translates them for the Anthropic Messages API (system prompt, `tool_use`/`tool_result` blocks, usage including cache tokens). `claude_code.py` runs the operator's installed Claude Code CLI once per model call: print mode, JSON output, no session persistence, every built-in tool, MCP server and slash command off, an empty temporary working folder, the system prompt in a temporary file and the conversation as a JSON transcript on stdin (so retrieved text cannot fake turn boundaries). For a coordinator, a JSON Schema forces a reply of the form `{message, tool_calls[]}` limited to enabled tool names, which Static turns back into ordinary tool calls. Claude Code therefore never acts on its own; Static's validation, approvals and budgets apply as for any model. Stopping a run kills the process. Its environment excludes Static's secrets and `ANTHROPIC_API_KEY` unless a key variable is configured. A missing or unusable CLI makes the connection unavailable, like a missing API key.
+
+## MCP tool servers
+
+`mcp.py` is a minimal MCP client (protocol 2025-06-18 handshake; stdio and Streamable HTTP with JSON or SSE replies and session IDs). Servers come only from the operator-edited `mcp.json`; they start in the background at launch so a slow `npx` download does not block the app, and reload on request when no task is active. Tools become skills through `Registry.extend`, so the Skills page, disabled-skill list, schemas and engine treat them like built-ins. Approval-required tools bind the approval to the server, tool and configuration fingerprint. Stdio servers are read by threads (no dependency on the event loop's subprocess support) and only get a basic environment plus their configured variables.
 
 ## Files and asynchronous media
 
@@ -38,7 +46,9 @@ The ledger atomically checks both the run and UTC daily budgets and reserves bef
 
 - `static_ai/app.py`: HTTP API, lifespan, authentication, same-origin checks.
 - `static_ai/engine.py`: coordinator and approval state machine.
-- `static_ai/providers.py`: model selection, OpenAI-compatible request adapter, token accounting.
+- `static_ai/providers.py`: model selection, OpenAI-compatible and Anthropic request adapters, token accounting.
+- `static_ai/claude_code.py`: Claude Code CLI source (headless, tools off) and its health check.
+- `static_ai/mcp.py`: MCP client, `mcp.json` loading and MCP tools as skills.
 - `static_ai/skills/`: typed skill registry and built-in tools.
 - `static_ai/network.py`: public GET requests with DNS/IP and redirect validation.
 - `static_ai/media.py`: Replicate submission and persistent job synchronization.

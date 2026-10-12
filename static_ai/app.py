@@ -18,6 +18,7 @@ from .artifacts import Artifacts
 from .config import Config, Settings, StrictModel, env
 from .db import Store, now, uid
 from .engine import Engine
+from .mcp import McpManager
 from .media import MediaService
 from .providers import Providers
 from .skills import create_registry
@@ -72,6 +73,8 @@ def create_app(data_dir=None, transport=None):
     providers = Providers(config, store, transport)
     media = MediaService(config, store, artifacts, transport)
     registry = create_registry()
+    mcp = McpManager(config.root, transport)
+    registry.extend(mcp.skills)
     engine = Engine(config, store, providers, artifacts, media, registry)
     token = env("AUTH_TOKEN")
     allowed_hosts = env("ALLOWED_HOSTS", "localhost,127.0.0.1,::1").split(",")
@@ -85,12 +88,16 @@ def create_app(data_dir=None, transport=None):
             "UPDATE media_jobs SET status='unknown',error='Submission interrupted. Check the provider dashboard before retrying.' WHERE status='submitting'"
         )
         poller = asyncio.create_task(media.loop())
+        # MCP servers can take a while to start (for example npx downloads); do not block startup.
+        connecting = asyncio.create_task(mcp.start())
         yield
         poller.cancel()
+        connecting.cancel()
         tasks = list(engine.tasks.values())
         for task in tasks:
             task.cancel()
-        await asyncio.gather(poller, *tasks, return_exceptions=True)
+        await asyncio.gather(poller, connecting, *tasks, return_exceptions=True)
+        await mcp.close()
 
     app = FastAPI(
         title="Static",
@@ -101,6 +108,7 @@ def create_app(data_dir=None, transport=None):
         openapi_url=None,
     )
     app.state.engine, app.state.store, app.state.config = engine, store, config
+    app.state.mcp = mcp
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
     @app.middleware("http")
@@ -156,12 +164,15 @@ def create_app(data_dir=None, transport=None):
     async def settings():
         return {**config.public(), "spent_today": store.spending(), "date_basis": "UTC"}
 
-    @app.put("/api/settings")
-    async def save_settings(settings: Settings):
+    def idle():
         if store.one(
             "SELECT id FROM runs WHERE status IN ('queued','running','awaiting_approval')"
         ):
             raise HTTPException(409, "Finish or stop active tasks before changing settings")
+
+    @app.put("/api/settings")
+    async def save_settings(settings: Settings):
+        idle()
         config.save(settings)
         return config.public()
 
@@ -181,9 +192,22 @@ def create_app(data_dir=None, transport=None):
                 "category": s.category,
                 "approval": s.approval,
                 "enabled": s.name not in config.settings.disabled_skills,
+                "title": s.title,
+                "source": s.source,
             }
             for s in registry.skills.values()
         ]
+
+    @app.get("/api/mcp")
+    async def mcp_status():
+        return mcp.status()
+
+    @app.post("/api/mcp/reload")
+    async def mcp_reload():
+        # Tools must not change under a run, nor under an approval bound to a server's config.
+        idle()
+        await mcp.start()
+        return mcp.status()
 
     @app.get("/api/conversations")
     async def conversations():

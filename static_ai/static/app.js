@@ -49,6 +49,24 @@ const labels = {
   settings: "Settings",
 };
 const activeStatuses = ["queued", "running", "awaiting_approval"];
+// AI sources a model connection can use. Claude Code runs on the server with its own tools off.
+const providers = {
+  openai: { label: "OpenAI-compatible", key: "STATIC_API_KEY" },
+  anthropic: {
+    label: "Claude · Anthropic API",
+    key: "ANTHROPIC_API_KEY",
+    url: "https://api.anthropic.com/v1",
+  },
+  claude_code: {
+    label: "Claude Code",
+    key: "Optional · blank uses your sign-in",
+  },
+};
+function skillLabel(name) {
+  if (skillInfo[name]) return skillInfo[name][0];
+  const mcp = /^mcp__([A-Za-z0-9_-]+?)__(.+)$/.exec(name || "");
+  return mcp ? mcp[2] + " · " + mcp[1] : name;
+}
 const categoryIcons = {
   work: "file",
   life: "calendar",
@@ -972,7 +990,7 @@ function paintMessages(messages) {
 }
 function activityDescription(event) {
   const d = event.data;
-  const name = skillInfo[d.name]?.[0] || d.name;
+  const name = skillLabel(d.name);
   switch (event.kind) {
     case "model":
       return "Using " + d.name + (d.role ? " · " + d.role : "");
@@ -1088,37 +1106,68 @@ async function pollRun(runId, generation) {
     approvals.replaceChildren();
     for (const approval of run.approvals) {
       const card = el("div", "approval-card");
+      const args = approval.args.arguments || approval.args;
+      const profile = approval.args.profile || {};
+      // MCP tool approvals bind to a server and tool; media approvals to a profile and cost.
+      const tool = approval.args.server
+        ? { server: approval.args.server, tool: approval.args.tool }
+        : null;
       card.append(
         el(
           "h3",
           "",
-          preview ? "Try an example approval" : "Approve this generation?",
+          preview
+            ? "Try an example approval"
+            : tool
+              ? "Allow this tool to run?"
+              : "Approve this generation?",
         ),
       );
-      const args = approval.args.arguments || approval.args;
-      const profile = approval.args.profile || {};
       card.append(
-        el("p", "", String(args.prompt || "Media generation")),
+        el(
+          "p",
+          "",
+          tool
+            ? tool.tool + " · MCP server " + tool.server
+            : String(args.prompt || "Media generation"),
+        ),
         el(
           "p",
           "muted",
-          (profile.model || args.kind || "Media") +
-            " · " +
-            (preview
-              ? "Simulated · no charge"
-              : money(approval.cost) +
-                " cost reservation. Provider billing may differ."),
+          tool
+            ? "Runs once with the details below. Its result is treated as untrusted data."
+            : (profile.model || args.kind || "Media") +
+                " · " +
+                (preview
+                  ? "Simulated · no charge"
+                  : money(approval.cost) +
+                    " cost reservation. Provider billing may differ."),
         ),
       );
       const review = el("details");
       review.append(
-        el("summary", "", "Generation details"),
-        el("pre", "", JSON.stringify({ arguments: args, profile }, null, 2)),
+        el("summary", "", tool ? "Tool details" : "Generation details"),
+        el(
+          "pre",
+          "",
+          JSON.stringify(
+            tool ? { ...tool, arguments: args } : { arguments: args, profile },
+            null,
+            2,
+          ),
+        ),
       );
       card.append(review);
       const actions = el("div", "approval-actions");
       for (const [label, allow] of [
-        [preview ? "Approve example" : "Approve generation", true],
+        [
+          preview
+            ? "Approve example"
+            : tool
+              ? "Allow once"
+              : "Approve generation",
+          true,
+        ],
         ["Decline", false],
       ])
         actions.append(
@@ -1547,17 +1596,20 @@ async function renderSkills() {
       const category = meta?.[3] || s.category;
       return (
         (state.skillFilter === "all" || category === state.skillFilter) &&
-        ((meta?.[0] || s.name) + " " + s.description)
+        ((meta?.[0] || s.title || s.name) + " " + s.name + " " + s.description)
           .toLowerCase()
           .includes(query.toLowerCase())
       );
     });
     for (const skill of filtered) {
+      const server = skill.source?.startsWith("mcp:")
+        ? skill.source.slice(4)
+        : "";
       const meta = skillInfo[skill.name] || [
-          skill.name,
-          "sparkles",
-          skill.description,
-          skill.category,
+          skill.title || skill.name,
+          server ? "plug" : "sparkles",
+          skill.description.replace(/ \[MCP server [^\]]*\]$/, ""),
+          server ? "MCP · " + server : skill.category,
         ],
         card = el("article", "skill-card"),
         top = el("div", "skill-card-top"),
@@ -1609,6 +1661,7 @@ async function renderSkills() {
           ["Organize", "Organize"],
           ["Files", "Files"],
           ["Agents", "Agents"],
+          ...(skills.some((s) => s.category === "MCP") ? [["MCP", "MCP"]] : []),
         ],
         state.skillFilter,
         (v) => {
@@ -1634,7 +1687,7 @@ async function renderSkills() {
     el(
       "span",
       "",
-      "Static skills are extensible Python tools. See the repository’s skill guide to add your own.",
+      "Static skills are extensible Python tools. Add your own with the repository’s skill guide, or connect MCP servers in Connections.",
     ),
   );
   root.append(n);
@@ -1656,7 +1709,11 @@ function modelCard(model, index) {
     symbol = el("div", "task-symbol");
   symbol.append(icon(model.local ? "leaf" : "bolt"));
   const copy = el("div");
-  copy.append(el("strong", "", model.name), el("small", "", model.model));
+  const provider = model.provider || "openai";
+  copy.append(
+    el("strong", "", model.name),
+    el("small", "", providers[provider].label + " · " + model.model),
+  );
   summary.append(
     symbol,
     copy,
@@ -1666,6 +1723,11 @@ function modelCard(model, index) {
   details.append(summary);
   const content = el("div", "model-form"),
     grid = el("div", "form-grid");
+  const source = selectField(
+    "AI source",
+    Object.entries(providers).map(([value, p]) => [value, p.label]),
+    provider,
+  );
   const name = field("Connection name", model.name, "text", {
       required: true,
       maxLength: 120,
@@ -1679,10 +1741,15 @@ function modelCard(model, index) {
       placeholder: "STATIC_API_KEY",
       pattern: "[A-Z0-9_]*",
     });
-  grid.append(name.wrap, modelName.wrap, base.wrap, key.wrap);
+  grid.append(source.wrap, name.wrap, modelName.wrap, base.wrap, key.wrap);
   content.append(grid);
   const local = checkbox("Local model · no per-token API cost", model.local);
-  content.append(local.wrap);
+  const claudeNote = el(
+    "p",
+    "muted small source-note",
+    "Runs the Claude Code installed on the computer running Static, with its own tools, MCP servers and commands turned off. Static runs every tool itself. Leave the key blank to use your Claude sign-in; enter 0 prices if your plan covers it.",
+  );
+  content.append(local.wrap, claudeNote);
   const priceGrid = el("div", "form-grid");
   const inputPrice = field(
       "Input price / 1M tokens (USD)",
@@ -1704,12 +1771,27 @@ function modelCard(model, index) {
   );
   content.append(pricing.wrap);
   const syncLocal = () => {
+    const claudeCode = source.input.value === "claude_code";
+    if (claudeCode) local.input.checked = false;
+    local.wrap.hidden = claudeCode;
+    claudeNote.hidden = !claudeCode;
+    base.wrap.hidden = claudeCode;
+    base.input.required = !claudeCode;
+    tokenParam.wrap.hidden = source.input.value !== "openai";
+    key.input.placeholder = providers[source.input.value].key;
     inputPrice.input.disabled = local.input.checked;
     outputPrice.input.disabled = local.input.checked;
     pricing.wrap.hidden = local.input.checked;
   };
   local.input.onchange = syncLocal;
-  syncLocal();
+  source.input.onchange = () => {
+    const url = providers[source.input.value].url;
+    if (url && !base.input.value.includes("anthropic.com")) {
+      base.input.value = url;
+      local.input.checked = false;
+    }
+    syncLocal();
+  };
   const advanced = el("details");
   advanced.append(el("summary", "", "Advanced routing"));
   const advancedGrid = el("div", "form-grid"),
@@ -1728,6 +1810,7 @@ function modelCard(model, index) {
       model.token_parameter,
     );
   advancedGrid.append(max.wrap, tokenParam.wrap);
+  syncLocal();
   const tools = checkbox("Supports tool calling", model.tool_calling);
   advanced.append(advancedGrid, tools.wrap);
   const roles = el("div", "role-grid");
@@ -1754,9 +1837,13 @@ function modelCard(model, index) {
       "",
       preview
         ? "Example configuration"
-        : state.keys[model.id]
-          ? "Key available or local model"
-          : "Key not found on server",
+        : provider === "claude_code"
+          ? state.keys[model.id]
+            ? "Claude Code found on the server"
+            : "Claude Code not found on the server"
+          : state.keys[model.id]
+            ? "Key available or local model"
+            : "Key not found on server",
     );
   actions.append(
     button(
@@ -1813,11 +1900,15 @@ function modelCard(model, index) {
     element: details,
     value: () => ({
       ...model,
+      provider: source.input.value,
       name: name.input.value.trim(),
       model: modelName.input.value.trim(),
-      base_url: base.input.value.trim().replace(/\/$/, ""),
+      base_url:
+        source.input.value === "claude_code"
+          ? ""
+          : base.input.value.trim().replace(/\/$/, ""),
       key_env: key.input.value.trim(),
-      local: local.input.checked,
+      local: source.input.value !== "claude_code" && local.input.checked,
       input_per_million: local.input.checked
         ? 0
         : Number(inputPrice.input.value),
@@ -1838,14 +1929,16 @@ function addModel() {
     el(
       "p",
       "muted",
-      "Connect an OpenAI-compatible model endpoint. Your API key stays in an environment variable on the Python server.",
+      "Connect a local model, any OpenAI-compatible API, Claude through the Anthropic API, or Claude Code. Keys stay in environment variables on the Python server.",
     ),
   );
   const kind = selectField(
       "Connection type",
       [
         ["local", "Local · Ollama"],
-        ["cloud", "Cloud · compatible API"],
+        ["cloud", "Cloud · OpenAI-compatible API"],
+        ["anthropic", "Claude · Anthropic API"],
+        ["claude_code", "Claude Code · your Claude sign-in"],
       ],
       "local",
     ),
@@ -1877,9 +1970,15 @@ function addModel() {
       step: "any",
       required: true,
     }),
-    verified = checkbox("I verified the provider’s current prices", false);
+    verified = checkbox("I verified the provider’s current prices", false),
+    claudeNote = el(
+      "p",
+      "muted small source-note",
+      "Uses the Claude Code installed on the computer running Static, with its own tools turned off. Leave the key blank to use your Claude sign-in, and enter 0 prices if your plan covers it.",
+    );
   const cloudFields = el("div");
   cloudFields.append(
+    claudeNote,
     key.wrap,
     inputPrice.wrap,
     outputPrice.wrap,
@@ -1887,13 +1986,34 @@ function addModel() {
   );
   cloudFields.hidden = true;
   kind.input.onchange = () => {
-    const cloud = kind.input.value === "cloud";
+    const type = kind.input.value,
+      cloud = type !== "local";
     cloudFields.hidden = !cloud;
+    claudeNote.hidden = type !== "claude_code";
     verified.input.required = cloud;
-    url.input.value = cloud ? "" : "http://localhost:11434/v1";
-    url.input.placeholder = cloud ? "https://your-provider.example/v1" : "";
-    model.input.value = cloud ? "" : "qwen3:4b";
+    url.wrap.hidden = type === "claude_code";
+    url.input.required = type !== "claude_code";
+    url.input.value =
+      {
+        local: "http://localhost:11434/v1",
+        anthropic: "https://api.anthropic.com/v1",
+      }[type] || "";
+    url.input.placeholder =
+      type === "cloud" ? "https://your-provider.example/v1" : "";
+    key.input.value = type === "anthropic" ? "ANTHROPIC_API_KEY" : "";
+    key.input.placeholder =
+      type === "claude_code" ? "Optional" : "STATIC_API_KEY";
+    model.input.value =
+      { local: "qwen3:4b", claude_code: "sonnet" }[type] || "";
+    model.input.placeholder =
+      type === "anthropic" ? "Exact Claude model ID" : "";
+    if (!name.input.value || name.input.dataset.auto) {
+      name.input.value =
+        { anthropic: "Claude", claude_code: "Claude Code" }[type] || "";
+      name.input.dataset.auto = name.input.value ? "1" : "";
+    }
   };
+  name.input.oninput = () => (name.input.dataset.auto = "");
   form.append(kind.wrap, name.wrap, model.wrap, url.wrap, cloudFields);
   const save = el("button", "button primary", "Add connection");
   save.type = "submit";
@@ -1902,13 +2022,21 @@ function addModel() {
     e.preventDefault();
     save.disabled = true;
     try {
-      const local = kind.input.value === "local";
+      const local = kind.input.value === "local",
+        provider =
+          { anthropic: "anthropic", claude_code: "claude_code" }[
+            kind.input.value
+          ] || "openai";
       const settings = structuredClone(state.settings);
       settings.models.push({
         id: "model-" + crypto.randomUUID().slice(0, 8),
+        provider,
         name: name.input.value.trim(),
         model: model.input.value.trim(),
-        base_url: url.input.value.trim().replace(/\/$/, ""),
+        base_url:
+          provider === "claude_code"
+            ? ""
+            : url.input.value.trim().replace(/\/$/, ""),
         key_env: local ? "" : key.input.value.trim(),
         local,
         input_per_million: local ? 0 : Number(inputPrice.input.value),
@@ -1930,7 +2058,142 @@ function addModel() {
   };
   showModal("Bring your own model.", form);
 }
+const mcpExample = JSON.stringify(
+  {
+    mcpServers: {
+      files: {
+        command: "npx",
+        args: [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "/path/to/a/folder",
+        ],
+      },
+      docs: {
+        url: "https://example.com/mcp",
+        headers: { Authorization: "Bearer ${DOCS_TOKEN}" },
+        approval: "always",
+      },
+    },
+  },
+  null,
+  2,
+);
+function mcpPanel(status) {
+  const panel = el("section", "panel");
+  panel.id = "mcp-panel";
+  panel.append(
+    panelHeading(
+      "Tools from MCP servers.",
+      "Connect Model Context Protocol servers to give Static new skills. Servers are listed in mcp.json on the computer running Static, so this page never starts programs. Tools that can change things ask you first.",
+    ),
+  );
+  if (status.error) panel.append(notice(status.error, "error"));
+  const list = el("div", "mcp-list");
+  for (const server of status.servers) {
+    const row = el("div", "mcp-server"),
+      symbol = el("div", "task-symbol"),
+      copy = el("div");
+    symbol.append(icon("plug"));
+    copy.append(
+      el("strong", "", server.name),
+      el(
+        "small",
+        "",
+        [
+          server.transport === "http"
+            ? "HTTP · " + server.target
+            : server.target,
+          server.info,
+          server.status === "connected"
+            ? server.tools + (server.tools === 1 ? " tool" : " tools")
+            : "",
+          server.approval &&
+            {
+              always: "every call asks",
+              writes: "changes ask first",
+              never: "trusted · never asks",
+            }[server.approval],
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      ),
+    );
+    if (server.error) copy.append(el("p", "mcp-error", server.error));
+    const [label, tone] = {
+      connected: ["Connected", "green"],
+      starting: ["Starting…", "purple"],
+      disabled: ["Off", ""],
+    }[server.status] || ["Needs attention", "red"];
+    row.append(symbol, copy, badge(label, tone));
+    list.append(row);
+  }
+  if (!status.servers.length)
+    list.append(
+      el(
+        "p",
+        "muted small",
+        preview
+          ? "The preview has no MCP servers. Run the Python app to connect them."
+          : "No MCP servers yet. Add them to " + status.path + ", then reload.",
+      ),
+    );
+  panel.append(list);
+  const example = el("details", "mcp-example");
+  example.append(
+    el("summary", "", "Example mcp.json"),
+    el("pre", "", mcpExample),
+    el(
+      "p",
+      "muted small",
+      "The same mcpServers format as Claude Desktop and Claude Code. ${NAME} reads a server environment variable. approval is writes (default), always or never; disabled: true turns a server off. Remote servers are skipped in local-only mode.",
+    ),
+  );
+  const actions = el("div", "model-actions");
+  actions.append(
+    el(
+      "span",
+      "",
+      status.exists || preview ? "" : "mcp.json has not been created yet",
+    ),
+    button(
+      "Reload servers",
+      async (b) => {
+        b.disabled = true;
+        try {
+          const next = await api("/api/mcp/reload", { method: "POST" });
+          panel.replaceWith(mcpPanel(next));
+          toast("MCP servers reloaded");
+        } finally {
+          if (b.isConnected) b.disabled = false;
+        }
+      },
+      "button compact",
+      "refresh",
+    ),
+  );
+  const link = el("a", "", "Find MCP servers ↗");
+  link.href = "https://github.com/modelcontextprotocol/servers";
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  const links = el("div", "connection-links");
+  links.append(link);
+  panel.append(example, actions, links);
+  if (status.servers.some((s) => s.status === "starting")) {
+    const generation = state.generation;
+    setTimeout(async () => {
+      if (generation !== state.generation || !panel.isConnected) return;
+      try {
+        panel.replaceWith(mcpPanel(await api("/api/mcp")));
+      } catch {}
+    }, 2500);
+  }
+  return panel;
+}
 async function renderConnections() {
+  const generation = state.generation;
+  const mcp = await api("/api/mcp");
+  if (generation !== state.generation) return;
   const root = el("div");
   root.append(
     heading(
@@ -2089,7 +2352,7 @@ async function renderConnections() {
       if (save.isConnected) save.disabled = false;
     }
   };
-  root.append(form);
+  root.append(form, mcpPanel(mcp));
   main.append(root);
 }
 function renderSettings() {
