@@ -52,6 +52,15 @@ async function waitPage(page) {
         document.querySelector(".model-actions>span").textContent ===
         "Connected",
     );
+    assert.match(
+      await page.locator("#mcp-panel").innerText(),
+      /No MCP servers yet/,
+    );
+    await page.getByRole("button", { name: "Reload servers" }).click();
+    await page.waitForFunction(
+      () =>
+        document.querySelector("#toast").textContent === "MCP servers reloaded",
+    );
     await page.locator('nav a[data-page="skills"]').click();
     await page.locator(".skill-card").first().waitFor();
     assert.equal(await page.locator(".skill-card").count(), 13);
@@ -239,6 +248,16 @@ async function waitPage(page) {
     await demo
       .getByRole("button", { name: "Close dialog", exact: true })
       .click();
+    await demo.goto(preview + "/connections.html");
+    await waitPage(demo);
+    assert.match(
+      await demo.locator(".model-card").nth(1).innerText(),
+      /Claude Code · sonnet/,
+    );
+    assert.match(
+      await demo.locator("#mcp-panel").innerText(),
+      /preview has no MCP servers/,
+    );
     await demo.goto(preview + "/skills.html");
     await waitPage(demo);
     await demo

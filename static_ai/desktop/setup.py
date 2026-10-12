@@ -17,7 +17,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..claude_code import locate
 from ..config import Model
+
+# Mode -> AI source. Claude Code uses its own sign-in; keyed modes store a key in Credential Manager.
+PROVIDERS = {"anthropic": "anthropic", "claude_code": "claude_code"}
+PRICED = ("api", "anthropic", "claude_code")
+KEYED = ("api", "anthropic")
 
 
 class SetupDialog(QDialog):
@@ -41,12 +47,19 @@ class SetupDialog(QDialog):
         self.mode.addItem("API key · a cloud provider", "api")
         self.mode.addItem("Ollama · AI on this computer", "ollama")
         self.mode.addItem("Another local server · e.g. LM Studio", "other")
+        self.mode.addItem("Claude · Anthropic API key", "anthropic")
+        self.mode.addItem("Claude Code · your Claude sign-in", "claude_code")
         layout.addWidget(self.mode)
         self.local_copy = QLabel(
             "Ollama runs models on your PC. Static starts it when needed and asks before installing it or downloading models. You can decline and set it up later."
         )
         self.local_copy.setWordWrap(True)
         layout.addWidget(self.local_copy)
+        self.claude_copy = QLabel(
+            "Uses Claude Code installed on this PC (claude.exe) and your Claude sign-in. Its own tools stay off; Static runs every tool with your approvals and budgets. Enter 0 prices if your plan covers it."
+        )
+        self.claude_copy.setWordWrap(True)
+        layout.addWidget(self.claude_copy)
         self.form = QFormLayout()
         self.name = QLineEdit("My API model")
         self.endpoint = QLineEdit("https://api.openai.com/v1")
@@ -91,7 +104,9 @@ class SetupDialog(QDialog):
         layout.addWidget(self.buttons)
         self.mode.currentIndexChanged.connect(self.change_mode)
         current = config.settings.models[0]
-        if current.local:
+        if current.provider != "openai":
+            self.mode.setCurrentIndex(self.mode.findData(current.provider))
+        elif current.local:
             self.mode.setCurrentIndex(1 if ":11434" in current.base_url else 2)
         self.change_mode()
         self.name.setText(current.name)
@@ -106,12 +121,19 @@ class SetupDialog(QDialog):
 
     def change_mode(self):
         mode = self.mode.currentData()
-        cloud = mode == "api"
-        for widget in (self.key_name, self.key, self.input_price, self.output_price):
-            widget.setVisible(cloud)
-            self.form.labelForField(widget).setVisible(cloud)
-        self.confirm.setVisible(cloud)
+        for widget, visible in (
+            (self.key_name, mode in KEYED),
+            (self.key, mode in KEYED),
+            (self.input_price, mode in PRICED),
+            (self.output_price, mode in PRICED),
+            (self.endpoint, mode != "claude_code"),
+            (self.token_parameter, mode not in PROVIDERS),
+        ):
+            widget.setVisible(visible)
+            self.form.labelForField(widget).setVisible(visible)
+        self.confirm.setVisible(mode in PRICED)
         self.local_copy.setVisible(mode == "ollama")
+        self.claude_copy.setVisible(mode == "claude_code")
         if mode == "ollama":
             self.name.setText("Ollama · Qwen 3")
             self.endpoint.setText("http://localhost:11434/v1")
@@ -120,28 +142,41 @@ class SetupDialog(QDialog):
             self.name.setText("My local model")
             self.endpoint.setText("http://localhost:1234/v1")
             self.model.clear()
+        elif mode == "anthropic":
+            self.name.setText("Claude")
+            self.endpoint.setText("https://api.anthropic.com/v1")
+            self.model.clear()
+            self.key_name.setText("ANTHROPIC_API_KEY")
+        elif mode == "claude_code":
+            self.name.setText("Claude Code")
+            self.model.setText("sonnet")
         else:
             self.name.setText("My API model")
             self.endpoint.setText("https://api.openai.com/v1")
             self.model.clear()
+            self.key_name.setText("STATIC_DESKTOP_API_KEY")
 
     def accept(self):
         try:
-            cloud = self.mode.currentData() == "api"
+            mode = self.mode.currentData()
+            cloud, keyed = mode in PRICED, mode in KEYED
+            if mode == "claude_code":
+                locate()  # Explain a missing or unusable installation now, not at first chat.
             self.selected_model = Model(
                 id="desktop",
                 name=self.name.text().strip(),
+                provider=PROVIDERS.get(mode, "openai"),
                 model=self.model.text().strip(),
-                base_url=self.endpoint.text().strip(),
+                base_url="" if mode == "claude_code" else self.endpoint.text().strip(),
                 local=not cloud,
-                key_env=self.key_name.text().strip() if cloud else "",
+                key_env=self.key_name.text().strip() if keyed else "",
                 input_per_million=self.input_price.value() if cloud else 0,
                 output_per_million=self.output_price.value() if cloud else 0,
                 pricing_confirmed=self.confirm.isChecked() if cloud else False,
                 token_parameter=self.token_parameter.currentData(),
             )
-            self.secret = self.key.text().strip() if cloud else ""
-            if cloud:
+            self.secret = self.key.text().strip() if keyed else ""
+            if keyed:
                 self.credentials.target(self.selected_model.key_env)
                 existing = os.getenv(self.selected_model.key_env) or self.credentials.get(
                     self.selected_model.key_env

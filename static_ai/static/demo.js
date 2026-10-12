@@ -22,6 +22,7 @@ function seed() {
       {
         id: "local",
         name: "Ollama · Qwen 3",
+        provider: "openai",
         model: "qwen3:4b",
         base_url: "http://localhost:11434/v1",
         key_env: "",
@@ -31,6 +32,22 @@ function seed() {
         pricing_confirmed: false,
         tool_calling: true,
         roles: ["coordinator", "researcher", "writer", "coder", "planner"],
+        max_output_tokens: 2048,
+        token_parameter: "max_tokens",
+      },
+      {
+        id: "claude-code",
+        name: "Claude Code · Sonnet",
+        provider: "claude_code",
+        model: "sonnet",
+        base_url: "",
+        key_env: "",
+        input_per_million: 0,
+        output_per_million: 0,
+        local: false,
+        pricing_confirmed: true,
+        tool_calling: true,
+        roles: ["writer", "coder"],
         max_output_tokens: 2048,
         token_parameter: "max_tokens",
       },
@@ -309,7 +326,12 @@ export async function demoRequest(path, method = "GET", body) {
     }
     return clone({
       settings: state.settings,
-      keys: { brave: false, replicate: false, local: true },
+      keys: {
+        brave: false,
+        replicate: false,
+        local: true,
+        "claude-code": true,
+      },
       spent_today: 0,
       date_basis: "UTC",
     });
@@ -322,6 +344,8 @@ export async function demoRequest(path, method = "GET", body) {
       approval: name === "media_generate",
       enabled: !state.settings.disabled_skills.includes(name),
     }));
+  if (group === "mcp")
+    return { path: "data/mcp.json", exists: false, error: "", servers: [] };
   if (group === "models")
     return {
       ok: true,

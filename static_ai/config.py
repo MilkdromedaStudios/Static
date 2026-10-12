@@ -19,9 +19,39 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1", "host.docker.internal", "ollama")
+# Where each source kind starts; operators can still point openai/anthropic at compatible servers.
+DEFAULT_BASE_URLS = {
+    "openai": "https://api.openai.com/v1",
+    "anthropic": "https://api.anthropic.com/v1",
+    "claude_code": "",
+}
+
+
+def check_endpoint(url, local):
+    """Shared rules for operator-configured HTTP endpoints (models and MCP servers)."""
+    u = urlsplit(url)
+    if (
+        u.scheme not in ("https", "http")
+        or not u.hostname
+        or u.username
+        or u.password
+        or u.query
+        or u.fragment
+    ):
+        raise ValueError("Use an HTTP(S) API base URL without credentials or query strings")
+    if not local and u.scheme != "https":
+        raise ValueError("Cloud endpoints must use HTTPS")
+    if local and u.hostname not in LOCAL_HOSTS:
+        raise ValueError("Local models must use a local host; mark remote servers as cloud")
+
+
 class Model(StrictModel):
     id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,60}$")
     name: str = Field(min_length=1, max_length=120)
+    # openai: any OpenAI-compatible /chat/completions server. anthropic: the Claude Messages API.
+    # claude_code: the operator's installed Claude Code CLI, run with its own tools turned off.
+    provider: Literal["openai", "anthropic", "claude_code"] = "openai"
     model: str = Field(min_length=1, max_length=200)
     base_url: str = "http://localhost:11434/v1"
     key_env: str = Field(default="", pattern=r"^[A-Z0-9_]*$")
@@ -38,16 +68,19 @@ class Model(StrictModel):
 
     @model_validator(mode="after")
     def endpoint(self):
-        u = urlsplit(self.base_url)
-        if (
-            u.scheme not in ("https", "http")
-            or not u.hostname
-            or u.username
-            or u.password
-            or u.query
-            or u.fragment
-        ):
-            raise ValueError("Use an HTTP(S) API base URL without credentials or query strings")
+        if self.provider == "claude_code":
+            # The model name becomes a CLI argument: allow aliases and model names, never flags.
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:\[\]-]{0,199}", self.model):
+                raise ValueError(
+                    "Use a Claude Code model alias such as sonnet or opus, or a full model name"
+                )
+            if self.local:
+                raise ValueError(
+                    "Claude Code sends prompts to Anthropic. Set it up as cloud and confirm pricing (0 if your plan covers it)"
+                )
+            self.base_url = ""
+        else:
+            check_endpoint(self.base_url, self.local)
         if not self.local and not self.pricing_confirmed:
             raise ValueError(
                 "Confirm current provider pricing before enabling a cloud model (including free endpoints)"
@@ -56,16 +89,6 @@ class Model(StrictModel):
             raise ValueError(
                 "Cloud models served through Ollama must be configured as cloud, with pricing"
             )
-        if not self.local and u.scheme != "https":
-            raise ValueError("Cloud endpoints must use HTTPS")
-        if self.local and u.hostname not in (
-            "localhost",
-            "127.0.0.1",
-            "::1",
-            "host.docker.internal",
-            "ollama",
-        ):
-            raise ValueError("Local models must use a local host; mark remote servers as cloud")
         if self.local and (self.input_per_million or self.output_per_million):
             raise ValueError("Local models must have zero API pricing")
         return self
@@ -105,7 +128,8 @@ class Settings(StrictModel):
     media: dict[Literal["image", "video", "3d"], MediaProfile] = Field(
         default_factory=lambda: {k: MediaProfile() for k in ("image", "video", "3d")}
     )
-    disabled_skills: list[str] = Field(default_factory=list, max_length=100)
+    # Room for built-in skills plus individually disabled MCP tools.
+    disabled_skills: list[str] = Field(default_factory=list, max_length=500)
 
     @model_validator(mode="after")
     def unique_models(self):
@@ -125,19 +149,27 @@ class Config:
             self.settings = Settings.model_validate_json(self.path.read_text())
         elif env("CHAT_MODEL"):
             # Explicit first-run API configuration. Never infer a model or its price from a key.
+            provider = env("CHAT_PROVIDER", "openai")
+            if provider not in DEFAULT_BASE_URLS:
+                raise ValueError("STATIC_CHAT_PROVIDER must be openai, anthropic or claude_code")
+            # Claude Code uses its own sign-in unless a key variable is named explicitly.
+            default_key = "" if provider == "claude_code" else "STATIC_API_KEY"
             model = Model(
                 id="api",
                 name=env("CHAT_NAME", "API model"),
+                provider=provider,
                 model=env("CHAT_MODEL"),
-                base_url=env("CHAT_BASE_URL", "https://api.openai.com/v1"),
-                key_env=env("CHAT_KEY_ENV", "STATIC_API_KEY"),
+                base_url=env("CHAT_BASE_URL", DEFAULT_BASE_URLS[provider]),
+                key_env=env("CHAT_KEY_ENV", default_key),
                 local=False,
                 pricing_confirmed=env("CHAT_PRICING_CONFIRMED").lower() == "true",
                 input_per_million=float(env("CHAT_INPUT_PER_MILLION", "0")),
                 output_per_million=float(env("CHAT_OUTPUT_PER_MILLION", "0")),
             )
-            if not model.key_env or not os.getenv(model.key_env):
-                raise ValueError(f"Set {model.key_env or 'STATIC_CHAT_KEY_ENV'} for the API model")
+            if model.key_env and not os.getenv(model.key_env):
+                raise ValueError(f"Set {model.key_env} for the API model")
+            if not model.key_env and provider != "claude_code":
+                raise ValueError("Set STATIC_CHAT_KEY_ENV for the API model")
             self.settings = Settings(models=[model])
         else:
             self.settings = Settings()
@@ -150,15 +182,19 @@ class Config:
         self.settings = settings
 
     def public(self):
+        from .claude_code import located
+
+        def ready(m):
+            if m.provider == "claude_code":
+                return located() and (not m.key_env or bool(os.getenv(m.key_env)))
+            return bool(os.getenv(m.key_env)) if m.key_env else m.local
+
         data = self.settings.model_dump()
         return {
             "settings": data,
             "keys": {
                 "brave": bool(os.getenv("BRAVE_API_KEY")),
                 "replicate": bool(os.getenv("REPLICATE_API_TOKEN")),
-                **{
-                    m.id: bool(os.getenv(m.key_env)) if m.key_env else m.local
-                    for m in self.settings.models
-                },
+                **{m.id: ready(m) for m in self.settings.models},
             },
         }
