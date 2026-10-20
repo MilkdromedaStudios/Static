@@ -1453,7 +1453,7 @@ input[type="checkbox"] {
 .model-card summary::-webkit-details-marker {
   display: none;
 }
-.model-card summary > div {
+.model-card summary > div:not(.task-symbol) {
   flex: 1;
 }
 .model-card summary strong {
@@ -1549,6 +1549,69 @@ input[type="checkbox"] {
 }
 .connection-links a:hover {
   text-decoration: underline;
+}
+#mcp-panel {
+  margin-top: 28px;
+}
+.source-note {
+  margin: 2px 0 16px;
+}
+.mcp-list {
+  display: grid;
+  gap: 10px;
+}
+.mcp-server {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 14px 16px;
+  background: var(--bg);
+}
+.mcp-server > div:not(.task-symbol) {
+  flex: 1;
+  min-width: 0;
+}
+.mcp-server strong {
+  font-size: 13px;
+  font-weight: 600;
+  display: block;
+}
+.mcp-server small {
+  display: block;
+  font-size: 10px;
+  color: var(--subtle);
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.mcp-error {
+  font-size: 11px;
+  color: var(--red);
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.mcp-example {
+  margin-top: 16px;
+  font-size: 12px;
+}
+.mcp-example summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+.mcp-example pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 14px;
+  margin: 10px 0 8px;
+  font:
+    11px/1.7 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 .chat-view {
   max-width: 860px;

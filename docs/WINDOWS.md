@@ -19,12 +19,14 @@ The first-run dialog offers:
 | API key | Tool-capable model ID, OpenAI-compatible HTTPS base URL, key, verified per-million-token rates | Its own Python service; Ollama is skipped |
 | Ollama | Local model ID, default `qwen3:4b` | An installed Ollama service; installation and model download require separate yes prompts |
 | Another local server | Loopback base URL and exact tool-capable model ID, e.g. an LM Studio server | Its own service; start the other model server yourself |
+| Claude · Anthropic API key | Claude model ID, Anthropic key, verified rates | Its own service; requests go to `https://api.anthropic.com/v1` |
+| Claude Code · your Claude sign-in | A model alias such as `sonnet`, and rates (0 if your plan covers it) | Runs your installed, signed-in native `claude.exe` with its own tools off |
 
 API providers differ in model IDs, prices and token fields. Select `max_tokens` or `max_completion_tokens` according to your provider. Enter the actual current prices; confirm zero only for a free endpoint. The app's Connections page supports multiple models, specialist routing, model tests and media profiles.
 
 Change the active chat connection later using **Static → AI setup**. Finish or stop active tasks before switching. This selects a single coordinator profile; configure multiple profiles in Connections afterward. **Static → API keys** edits the keys referenced by saved models, plus `BRAVE_API_KEY` and `REPLICATE_API_TOKEN` for search and media. New keys take effect immediately. Leave blank to retain a key, or select Remove. Credentials are stored in **Windows Credential Manager**, scoped to this workspace. Only key variable names go into JSON files.
 
-Cloud chat uses your provider's OpenAI-compatible API. Media uses your Replicate token and the profiles you configure; a chat key does not also pay for unrelated media/search providers. Documents, exported files and procedural geometry run in the bundled app. Budgets, tool approvals and the account-action boundaries described in README still apply.
+Cloud chat uses your provider's OpenAI-compatible API, the Anthropic Messages API, or Claude Code. For Claude Code, install the native Windows build so `claude.exe` is on `PATH` (or set `STATIC_CLAUDE_CODE_PATH`), run `claude` once to sign in, then restart Static; `.cmd` shims are refused. MCP tool servers are listed in `mcp.json` in your workspace data folder (see README). Media uses your Replicate token and the profiles you configure; a chat key does not also pay for unrelated media/search providers. Documents, exported files and procedural geometry run in the bundled app. Budgets, tool approvals and the account-action boundaries described in README still apply.
 
 ## Tray and quick chat
 

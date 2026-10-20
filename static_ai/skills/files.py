@@ -117,6 +117,13 @@ async def media(ctx, args):
     return await ctx.media.create(ctx, args.kind, args.prompt)
 
 
+def media_terms(ctx, args):
+    if ctx.mode == "local":
+        raise ValueError("Paid media is disabled in local-only mode")
+    profile = ctx.media.profile(args.kind)
+    return {"profile": profile.model_dump()}, profile.reserve_usd
+
+
 def register(registry):
     registry.add(
         Skill(
@@ -162,5 +169,6 @@ def register(registry):
             Media,
             media,
             approval=True,
+            terms=media_terms,
         )
     )

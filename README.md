@@ -5,7 +5,7 @@
   <p>Your personal AI workspace. Research, plan, create, and keep good work moving.</p>
 </div>
 
-Static is a Python app with a task-oriented interface, a small AI coordinator, focused specialist agents, and 13 useful skills. It runs on your computer with your models. Start with Ollama for local inference, or connect OpenAI-compatible providers and generative media models.
+Static is a Python app with a task-oriented interface, a small AI coordinator, focused specialist agents, and 13 useful skills. It runs on your computer with your models. Start with Ollama for local inference, or connect OpenAI-compatible providers, Claude (through the Anthropic API or your own Claude Code sign-in), MCP tool servers and generative media models.
 
 ![Static in light mode](docs/static-light.png)
 
@@ -26,7 +26,7 @@ Static is a Python app with a task-oriented interface, a small AI coordinator, f
 | Create | Make documents, images, video, 3D models, email drafts, and calendar files. |
 | Library | Find, filter, preview text, and download your work. Track external media generations. |
 | Skills | Enable or disable individual tools; extend the registry with trusted Python code. |
-| Connections | Configure and test language models, role routing, media profiles, and provider costs. |
+| Connections | Configure and test language models (OpenAI-compatible, Anthropic, Claude Code), role routing, MCP servers, media profiles, and provider costs. |
 | Settings | Set a name, explicit preferences, spending limits, web search, and light/dark/system appearance. |
 
 The interface is original to Static. Its goal-focused workflow takes inspiration from personal agents such as Muse. Static is independent of Meta and does not include Meta models, assets, accounts or services.
@@ -100,7 +100,7 @@ STATIC_CHAT_PRICING_CONFIRMED=true
 
 Run `start.sh` or `start.ps1`. On a fresh workspace, Static creates a cloud model profile from those values and skips Ollama installation and startup. The `.env` file stays on your computer and is git-ignored. You can also simply set a provider key, start the app, decline the Ollama prompt, and add the model through **Connections**. Existing `data/settings.json` takes precedence over first-run variables so later changes in the UI persist.
 
-Language models use an OpenAI-compatible `/chat/completions` API; use the endpoint and exact ID your provider documents. `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, or another variable can be selected with `STATIC_CHAT_KEY_ENV`. For live images, video, and generative 3D, set `REPLICATE_API_TOKEN` and configure each media profile in Connections. Brave web search uses `BRAVE_API_KEY`. No single API key is assumed to cover every provider. API charges remain subject to the configured per-run/daily estimates and media approvals.
+Language models use an OpenAI-compatible `/chat/completions` API by default; use the endpoint and exact ID your provider documents. Set `STATIC_CHAT_PROVIDER=anthropic` for the Claude Messages API (key in `ANTHROPIC_API_KEY` via `STATIC_CHAT_KEY_ENV`), or `STATIC_CHAT_PROVIDER=claude_code` with `STATIC_CHAT_MODEL=sonnet` to use an installed, signed-in Claude Code without any key (see [other AI sources](#other-ai-sources-claude-claude-code-and-mcp)). `OPENAI_API_KEY`, `OPENROUTER_API_KEY`, or another variable can be selected with `STATIC_CHAT_KEY_ENV`. For live images, video, and generative 3D, set `REPLICATE_API_TOKEN` and configure each media profile in Connections. Brave web search uses `BRAVE_API_KEY`. No single API key is assumed to cover every provider. API charges remain subject to the configured per-run/daily estimates and media approvals.
 
 ### Manual setup
 
@@ -125,6 +125,8 @@ The installed CLI is also available as `static-ai`. No npm or JavaScript build i
 |---|---|---|
 | Chat and orchestration | Saved conversations, native tool calls, bounded coordinator, visible action log | A language model with tool calling |
 | Specialist agents | One focused researcher, writer, coder or planner call at a time; no recursive delegation | One model can cover all roles |
+| Other AI sources | Native Claude Messages API; Claude Code CLI as a coordinator or specialist with its own tools turned off | An Anthropic key, or Claude Code installed and signed in |
+| MCP tools | Tools from stdio or Streamable HTTP MCP servers appear as skills; changes need a one-use approval | Servers you list in `data/mcp.json` |
 | Saved goals | Persistent tasks/checklists connected to conversations; work continues if you close the browser while the server stays running | Included |
 | Public web research | Search, source links, page extraction, redirect/IP validation and search cache | Best-effort DuckDuckGo, or optional Brave key |
 | Documents | PDF, Word, Markdown, text, CSV, JSON and HTML | Runs locally |
@@ -135,7 +137,7 @@ The installed CLI is also available as `static-ai`. No npm or JavaScript build i
 | Shopping help | Research listings, compare price + shipping + known tax, link to seller | You complete checkout |
 | Cost controls | Cheapest eligible configured model, local-only mode, per-run/daily reservations, usage ledger | Current cloud rates entered and confirmed by you |
 
-Static does not log into accounts, autonomously purchase items, send messages, book travel, execute arbitrary code or run a general browser. Saved tasks are goals you start yourself, not a scheduler. There is no automatic semantic memory: preferences are explicit and editable. These boundaries are reflected in the available tools and interface.
+Static's built-in skills do not log into accounts, autonomously purchase items, send messages, book travel, execute arbitrary code or run a general browser. MCP servers you connect can add capabilities; their tools that may change something ask for your approval first (see below). Saved tasks are goals you start yourself, not a scheduler. There is no automatic semantic memory: preferences are explicit and editable. These boundaries are reflected in the available tools and interface.
 
 ## Connect your models
 
@@ -144,6 +146,34 @@ Static does not log into accounts, autonomously purchase items, send messages, b
 3. In **Settings**, choose best-effort DuckDuckGo or Brave. Brave needs `BRAVE_API_KEY` and a conservative search-cost reservation. Free search can be blocked or rate limited.
 4. For media, set `REPLICATE_API_TOKEN`, then configure the image/video/3D profile in Connections with a real `owner/model` or pinned version, its actual prompt field, required default inputs, and cost reservation. Model schemas differ; consult the chosen model's documentation.
 5. Use **Create** or ask in chat. Paid media pauses for your approval with the prompt, model, inputs and reservation. **Library → Refresh status** retrieves updates. Keep the Python server running until outputs download.
+
+### Other AI sources: Claude, Claude Code and MCP
+
+Each connection in **Connections → Add model** has an AI source:
+
+- **OpenAI-compatible** — Ollama, LM Studio, OpenAI, OpenRouter and other `/chat/completions` servers.
+- **Claude · Anthropic API** — the native Messages API at `https://api.anthropic.com/v1`, with the key in an environment variable such as `ANTHROPIC_API_KEY`. Tool calls, results and token usage are translated for you.
+- **Claude Code** — the `claude` CLI installed on the computer running Static, so you can use your existing Claude sign-in. Static runs it headless (`claude -p`) in an empty temporary folder with **its own tools, MCP servers and slash commands turned off**, and asks for structured output. Claude Code only decides; Static still validates and runs every tool, applies approvals and enforces budgets. It works as the coordinator or as a specialist (for example the *coder* role). Leave the key variable blank to use the sign-in (Static hides `ANTHROPIC_API_KEY` from it), or name one to bill an API key instead. Set `STATIC_CLAUDE_CODE_PATH` if `claude` is not on `PATH`; on Windows use the native `claude.exe`. Enter 0 prices if your plan covers usage.
+
+**MCP servers** add tools. List them in `data/mcp.json` (the data folder shown in Connections) using the same `mcpServers` format as Claude Desktop and Claude Code, then select **Connections → Reload servers**:
+
+```json
+{
+  "mcpServers": {
+    "files": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/a/folder"]
+    },
+    "docs": {
+      "url": "https://example.com/mcp",
+      "headers": { "Authorization": "Bearer ${DOCS_TOKEN}" },
+      "approval": "always"
+    }
+  }
+}
+```
+
+Each tool appears in **Skills** as `mcp__<server>__<tool>` and can be switched off there. `approval` is `writes` by default (tools not marked read-only ask before every call), `always`, or `never` for servers you fully trust. `${NAME}` reads a server environment variable, so secrets stay out of the file. Local servers get a basic environment plus their own `env`, not Static's keys. Remote servers are skipped in local-only mode. The web interface can reload and inspect servers but cannot add commands. See [adding skills](docs/SKILLS.md#mcp-servers) for details.
 
 Economy mode is a routing heuristic, not a guarantee of minimum possible cost or answer quality. Local-only mode excludes remote models and paid media/search. The spend display is an estimate; uncertain request outcomes retain reservations. Configure provider-side billing limits too. See [cost semantics](docs/ARCHITECTURE.md#cost-semantics).
 
@@ -180,7 +210,7 @@ python -m ruff check static_ai tests scripts
 python -m ruff format --check static_ai tests scripts
 ```
 
-The 42 backend tests cover real FastAPI/SQLite workflows with deterministic HTTP providers: plans, exports, approvals, costs, recovery, scope, authentication, migration and request boundaries. Browser tests cover both the Python UI and the Pages export. **No paid model calls are used; these tests verify behavior and contracts, not live model quality.**
+The backend tests cover real FastAPI/SQLite workflows with deterministic HTTP providers: plans, exports, approvals, costs, recovery, scope, authentication, migration and request boundaries, plus the Anthropic adapter, a fake Claude Code CLI and stdio/HTTP MCP servers. Browser tests cover both the Python UI and the Pages export. **No paid model calls are used; these tests verify behavior and contracts, not live model quality.**
 
 For the browser suite, install Node and Playwright:
 
@@ -204,6 +234,8 @@ GitHub Actions runs Python 3.11/3.12/3.13 checks and the browser suite, saving s
 |---|---|
 | Cannot reach Ollama | Restart Static to auto-start an installed server, or check the model/base URL and test. Choose an API-key model if preferred. |
 | Connection succeeds but tools fail | Use a model/server with function calling; match `max_tokens` or `max_completion_tokens`. |
+| Claude Code not found or not signed in | Run `claude` once in a terminal to sign in, restart Static, then **Test connection**. Set `STATIC_CLAUDE_CODE_PATH` if it is not on `PATH`. |
+| MCP server needs attention | Check its command or URL in `data/mcp.json`, any `${NAME}` variables, then **Reload servers**. Many tools can exceed the 100 KB request limit; switch unused ones off in Skills. |
 | Budget reached | Review rates, then adjust limits or choose local-only. Uncertain costs remain counted. |
 | Settings cannot be saved | Finish, decline or stop active runs before changing configuration. |
 | Search returns nothing | Try a known public URL or configure Brave. Direct public DNS/network access is needed. |
