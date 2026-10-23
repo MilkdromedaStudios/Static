@@ -421,8 +421,187 @@ async function waitPage(page) {
       await mini.close();
       await miniContext.close();
     }
+    // DigitBox AI in the preview, against a mocked DigitBox API.
+    const aiContext = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+      acceptDownloads: true,
+    });
+    const ai = await aiContext.newPage();
+    const aiErrors = [],
+      aiChats = [],
+      aiOther = [];
+    let chatReply = "ok";
+    ai.on("pageerror", (e) => aiErrors.push(e.message));
+    ai.on("request", (r) => {
+      const url = r.url();
+      if (
+        !url.startsWith("http://127.0.0.1:8766/") &&
+        !url.startsWith("https://digitbox.pages.dev/api/ai/") &&
+        !url.startsWith("https://digitbox.dev/ai/connect")
+      )
+        aiOther.push(url);
+    });
+    const freeStatus = {
+      configured: true,
+      storage: true,
+      signedIn: true,
+      plan: "free",
+      freeDailyLimit: 5,
+      user: { displayName: "Casey" },
+      defaultModel: "nemotron",
+      models: [
+        {
+          id: "nemotron",
+          label: "Nemotron 3.5 Lightning",
+          tier: "free",
+          configured: true,
+          locked: false,
+        },
+        {
+          id: "pro",
+          label: "Claude Haiku 5.5",
+          tier: "pro",
+          configured: true,
+          locked: true,
+        },
+      ],
+      usage: { used: 1, limit: 5, remaining: 4 },
+    };
+    const sse = (text) =>
+      text
+        .match(/[\s\S]{1,12}/g)
+        .map(
+          (piece) =>
+            "data: " +
+            JSON.stringify({ choices: [{ delta: { content: piece } }] }) +
+            "\n\n",
+        )
+        .join("") + "data: [DONE]\n\n";
+    const cors = {
+      "Access-Control-Allow-Origin": "http://127.0.0.1:8766",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+      "Access-Control-Expose-Headers": "X-AI-Model, X-AI-Plan, X-AI-Remaining",
+    };
+    await aiContext.route("https://digitbox.pages.dev/api/ai/**", (route) => {
+      const request = route.request();
+      if (request.method() === "OPTIONS")
+        return route.fulfill({ status: 204, headers: cors });
+      if (request.url().endsWith("/status"))
+        return route.fulfill({ headers: cors, json: freeStatus });
+      if (request.url().endsWith("/connect"))
+        return route.fulfill({ headers: cors, json: { ok: true } });
+      aiChats.push({
+        auth: request.headers().authorization,
+        body: request.postDataJSON(),
+      });
+      if (chatReply === "limit")
+        return route.fulfill({
+          status: 429,
+          headers: cors,
+          json: {
+            error: "You've used today's free messages.",
+            code: "limit_reached",
+          },
+        });
+      return route.fulfill({
+        headers: {
+          ...cors,
+          "Content-Type": "text/event-stream",
+          "X-AI-Model": "Nemotron 3.5 Lightning",
+          "X-AI-Remaining": "3",
+        },
+        body: sse(chatReply),
+      });
+    });
+    await aiContext.route("https://digitbox.dev/ai/connect**", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<h1>Connect</h1>" }),
+    );
+    // Not connected: example replies, and Connect opens DigitBox's consent page.
+    await ai.goto(preview + "/chat.html");
+    await waitPage(ai);
+    assert.equal(
+      (await ai.locator("#hosted-button").innerText()).trim(),
+      "Connect AI",
+    );
+    await ai
+      .locator(".hosted-notice")
+      .getByRole("button", { name: "Connect", exact: true })
+      .click();
+    await ai.waitForURL(/digitbox\.dev\/ai\/connect/);
+    const connectURL = new URL(ai.url());
+    assert.equal(
+      connectURL.searchParams.get("origin"),
+      "http://127.0.0.1:8766",
+    );
+    assert.equal(connectURL.searchParams.get("return"), preview + "/chat.html");
+    // DigitBox hands the AI-only token back in the fragment.
+    await ai.goto(preview + "/index.html#digitbox-ai=dbai_test123");
+    await waitPage(ai);
+    assert.equal(new URL(ai.url()).hash, "");
+    await ai.waitForFunction(() =>
+      document
+        .querySelector("#hosted-button")
+        .textContent.includes("DigitBox AI · Free"),
+    );
+    assert.match(
+      await ai.locator(".composer-hint").innerText(),
+      /4 messages left/,
+    );
+    chatReply =
+      "Here is your checklist.\n```markdown file=launch-checklist.md\n# Launch\n- Ship it\n```\nGood luck!";
+    await ai.locator("#prompt").fill("Make me a launch checklist file.");
+    await ai.locator("#send").click();
+    await ai
+      .locator(".message.assistant:not(.draft)")
+      .filter({ hasText: "Good luck!" })
+      .waitFor();
+    assert.equal(aiChats.length, 1);
+    assert.equal(aiChats[0].auth, "Bearer dbai_test123");
+    assert.equal(aiChats[0].body.surface, "static");
+    assert.equal(aiChats[0].body.model, "nemotron");
+    assert.deepEqual(aiChats[0].body.messages, [
+      { role: "user", content: "Make me a launch checklist file." },
+    ]);
+    const liveReply = ai
+      .locator(".message.assistant")
+      .filter({ hasText: "Good luck!" });
+    assert.doesNotMatch(await liveReply.innerText(), /# Launch/);
+    const aiDownload = ai.waitForEvent("download");
+    await liveReply.getByRole("link", { name: /launch-checklist\.md/ }).click();
+    assert.match(
+      fs.readFileSync(await (await aiDownload).path(), "utf8"),
+      /- Ship it/,
+    );
+    // A follow-up sends the whole conversation; a used-up allowance offers Pro.
+    chatReply = "limit";
+    await ai.locator("#prompt").fill("And a budget?");
+    await ai.locator("#send").click();
+    await ai.locator("#run-error").waitFor();
+    assert.match(await ai.locator("#run-error").innerText(), /free messages/);
+    assert.equal(
+      await ai
+        .locator("#run-error")
+        .getByRole("link", { name: "Get DigitBox Pro" })
+        .count(),
+      1,
+    );
+    assert.equal(aiChats[1].body.messages.length, 3);
+    await ai.goto(preview + "/library.html");
+    await waitPage(ai);
+    assert.match(await ai.locator("main").innerText(), /launch-checklist\.md/);
+    await ai.locator("#hosted-button").click();
+    await ai.getByRole("button", { name: "Disconnect", exact: true }).click();
+    await ai.waitForFunction(
+      () =>
+        document.querySelector("#hosted-button").textContent.trim() ===
+        "Connect AI",
+    );
+    assert.deepEqual(aiErrors, [], "DigitBox AI JavaScript errors");
+    assert.deepEqual(aiOther, [], "DigitBox AI unexpected requests");
+    await aiContext.close();
     console.log(
-      "Browser checks passed: live model settings, 13 skills, file generation/download, persistent chats/tasks, eight Pages routes, approvals, preview persistence, no API calls, light/dark themes, mobile layout, safe rendering and live/preview quick chat.",
+      "Browser checks passed: live model settings, 13 skills, file generation/download, persistent chats/tasks, eight Pages routes, approvals, preview persistence, no API calls, light/dark themes, mobile layout, safe rendering, live/preview quick chat and DigitBox AI connect/stream/files/limits.",
     );
     await demo.close();
   } finally {

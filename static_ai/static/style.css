@@ -413,6 +413,115 @@ nav a.active .icon {
 .mobile-menu {
   display: none;
 }
+/* DigitBox AI in the web preview (hosted.js). */
+.hosted-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 11px;
+  border: 1px solid var(--accent);
+  border-radius: 20px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hosted-button:hover {
+  background: var(--accent-strong);
+}
+.hosted-button[hidden] {
+  display: none;
+}
+.hosted-button .icon {
+  width: 13px;
+  height: 13px;
+}
+.hosted-button.connected {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
+.hosted-button.connected:hover {
+  background: var(--hover);
+}
+.hosted-button .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+.hosted-panel {
+  display: grid;
+  gap: 14px;
+}
+.hosted-panel > p {
+  margin: 0;
+  line-height: 1.6;
+}
+.hosted-panel > .button {
+  justify-self: start;
+}
+.hosted-panel .form-actions {
+  margin: 0;
+}
+.hosted-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.hosted-plan {
+  display: grid;
+  gap: 4px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+}
+.hosted-plan strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.hosted-plan span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.hosted-plan.pro {
+  border-color: var(--accent-soft);
+  background: var(--accent-faint);
+}
+.hosted-rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 18px;
+  margin: 0;
+  font-size: 12px;
+}
+.hosted-rows dt {
+  color: var(--muted);
+}
+.hosted-rows dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 550;
+}
+.hosted-notice {
+  align-items: center;
+}
+.hosted-notice > span {
+  flex: 1;
+}
+.hosted-notice .button,
+.notice .button {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.message.draft .markdown {
+  opacity: 0.92;
+}
 main {
   width: 100%;
   max-width: 1290px;
@@ -2228,6 +2337,16 @@ dialog::backdrop {
   .preview-badge {
     font-size: 9px;
     padding: 4px 7px;
+  }
+  .preview-badge:not([hidden]) + .hosted-button:not([hidden]) {
+    margin-left: -2px;
+  }
+  .hosted-button {
+    font-size: 10px;
+    padding: 4px 9px;
+  }
+  .preview-badge:has(+ .hosted-button:not([hidden])) {
+    display: none;
   }
   .topbar-actions > a {
     display: none;

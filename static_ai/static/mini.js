@@ -1,4 +1,5 @@
 import { api, preview, setToken } from "./api.js";
+import * as hosted from "./hosted.js";
 import {
   $,
   el,
@@ -47,7 +48,7 @@ async function download(id, name) {
     toast(e.message, true);
   }
 }
-function paint(messages) {
+function paint(messages, draft = "") {
   const list = $("#mini-messages"),
     nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 90;
   list.replaceChildren();
@@ -58,9 +59,13 @@ function paint(messages) {
       el(
         "p",
         "",
-        preview
-          ? "Try an example chat. This preview uses sample replies and makes no AI calls."
-          : "Ask a question, make a plan, or pick up where you left off.",
+        preview && hosted.connected()
+          ? "Ask a question or make a plan. Answers come from DigitBox AI."
+          : preview && hosted.hostedAvailable
+            ? "Try an example chat. Connect DigitBox AI in the full workspace for real answers."
+            : preview
+              ? "Try an example chat. This preview uses sample replies and makes no AI calls."
+              : "Ask a question, make a plan, or pick up where you left off.",
       ),
     );
     list.append(empty);
@@ -73,6 +78,11 @@ function paint(messages) {
       el("div", "mini-role", message.role === "user" ? "You" : "Static"),
       markdown(message.content, download),
     );
+    list.append(row);
+  }
+  if (draft) {
+    const row = el("article", "mini-message assistant draft");
+    row.append(el("div", "mini-role", "Static"), markdown(draft, download));
     list.append(row);
   }
   if (nearBottom) list.scrollTop = list.scrollHeight;
@@ -92,10 +102,13 @@ async function refresh() {
     $("#mini-approvals").replaceChildren();
     if (run) {
       const result = await api("/api/runs/" + run);
+      if (result.partial) paint(data.messages, result.partial);
       status(
         result.status === "awaiting_approval"
           ? "Review the action before Static continues."
-          : "Static is working… " + money(result.spent),
+          : result.hosted
+            ? "Static is replying with DigitBox AI…"
+            : "Static is working… " + money(result.spent),
       );
       for (const approval of result.approvals) {
         const card = el("div", "mini-approval");
@@ -118,7 +131,7 @@ async function refresh() {
         );
         $("#mini-approvals").append(card);
       }
-      timer = setTimeout(refresh, 800);
+      timer = setTimeout(refresh, result.hosted ? 300 : 800);
     } else {
       const last = data.runs[0];
       status(
@@ -213,6 +226,7 @@ async function initialize() {
       settings.settings.models.map((m) => m.name).join(" / ") +
       " · run limit " +
       money(settings.settings.run_budget_usd);
+    if (preview && hosted.connected()) showHosted();
     conversation =
       new URL(location.href).searchParams.get("id") || stored() || null;
     openLink();
@@ -225,4 +239,32 @@ async function initialize() {
     }
   }
 }
+// In the web preview, a connected DigitBox account answers for real.
+function showHosted() {
+  const current = hosted.cachedStatus();
+  $("#mini-model").textContent =
+    "DigitBox AI" + (hosted.planLabel() ? " · " + hosted.planLabel() : "");
+  const select = $("#mini-mode");
+  if (!current?.models?.length) return;
+  select.replaceChildren();
+  for (const model of current.models) {
+    const option = el(
+      "option",
+      "",
+      model.label +
+        (model.locked ? " · Pro" : !model.configured ? " · off" : ""),
+    );
+    option.value = model.id;
+    option.disabled = model.locked || !model.configured;
+    select.append(option);
+  }
+  select.value = hosted.chosenModel();
+  select.onchange = () => hosted.chooseModel(select.value);
+  select.setAttribute("aria-label", "DigitBox AI model");
+}
+window.addEventListener("static-hosted", () => {
+  if (preview && hosted.connected()) showHosted();
+});
+if (preview && hosted.connected())
+  hosted.hostedStatus().catch((e) => status(e.message));
 initialize();
