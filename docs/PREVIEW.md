@@ -8,7 +8,7 @@ Pages can't run the Python API or hold model keys, so a visitor can connect thei
 
 1. **Connect AI** (top bar, the chat page or Connections) opens `https://digitbox.dev/ai/connect?origin=…&return=…`. The visitor signs in there and chooses **Allow**.
 2. DigitBox sends them back with an AI-only token in the URL fragment (`#digitbox-ai=…`), which the preview stores in local storage and removes from the address bar. Fragments never reach a server. The token can only chat with DigitBox AI; it can't see the DigitBox account, and **Disconnect** deletes it.
-3. Chats stream from `POST https://digitbox.pages.dev/api/ai/chat`. Free DigitBox accounts get a few messages a day with Nemotron 3.5 Lightning; DigitBox Pro is unlimited and adds Claude Haiku 5.5. The plan and model show in the top bar, the sidebar and the composer.
+3. Chats stream from `POST https://digitbox.pages.dev/api/ai/chat`. Free DigitBox accounts get a few messages a day with Nemotron 3.5 Lightning; DigitBox Pro is unlimited and adds Nemotron 3 Ultra. Both are free models on OpenRouter. The plan and model show in the top bar, the sidebar and the composer.
 
 The model sees the conversation (not the example replies), the text of attached files, and the name and preferences from Settings. Files it writes as ```` ```markdown file=plan.md ```` blocks become Library files with download links. Create asks for text formats it can make (HTML for print-to-PDF, Markdown, CSV, SVG, OBJ, ICS, EML). There are no tools, web search or paid media generation in the preview.
 

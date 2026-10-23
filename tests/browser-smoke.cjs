@@ -459,7 +459,7 @@ async function waitPage(page) {
         },
         {
           id: "pro",
-          label: "Claude Haiku 5.5",
+          label: "Nemotron 3 Ultra",
           tier: "pro",
           configured: true,
           locked: true,

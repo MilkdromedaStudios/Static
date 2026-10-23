@@ -49,7 +49,7 @@ Open **http://localhost:8080**. Do not open `index.html` directly as a `file://`
 | DigitBox plan | Models | Limit |
 |---|---|---|
 | Free account | Nemotron 3.5 Lightning | A few messages a day (5 by default) |
-| DigitBox Pro | Claude Haiku 5.5 and Nemotron 3.5 Lightning | Unlimited |
+| DigitBox Pro | Nemotron 3 Ultra and Nemotron 3.5 Lightning | Unlimited |
 
 Replies stream in, and files the model writes (Markdown, CSV, SVG images, OBJ models, calendar events, email drafts) land in the Library as downloads. The model keys stay on DigitBox's server: the preview only receives an AI-only token that can't see the DigitBox account. Setup for the keys and plans is in DigitBox's [DIGITBOX_AI_SETUP.md](https://github.com/MilkdromedaStudios/DigitBox/blob/main/docs/DIGITBOX_AI_SETUP.md).
 
