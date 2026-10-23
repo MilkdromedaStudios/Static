@@ -195,6 +195,22 @@ def test_preview_build_only_exports_public_assets(tmp_path):
     )
 
 
+def test_preview_connects_only_to_digitbox_ai(tmp_path):
+    from scripts.build_preview import DIGITBOX_AI, build
+
+    runtime = (build(tmp_path / "Static") / "assets/runtime.js").read_text()
+    assert '"api": "https://digitbox.pages.dev/api/ai"' in runtime
+    assert '"connect": "https://digitbox.dev/ai/connect"' in runtime
+    # The preview holds no model credentials; DigitBox AI keeps them server-side.
+    assert not re.search(r"key|token|secret", runtime, re.I)
+    assert set(DIGITBOX_AI) == {"api", "connect", "upgrade"}
+    offline = (build(tmp_path / "offline", None) / "assets/runtime.js").read_text()
+    assert "ai:" not in offline
+    # The Python app's runtime never enables the preview's DigitBox AI link.
+    live = (Path(__file__).parents[1] / "static_ai/static/runtime.js").read_text()
+    assert "ai:" not in live
+
+
 def test_api_key_first_run_needs_no_ollama(tmp_path, monkeypatch):
     monkeypatch.setenv("STATIC_CHAT_MODEL", "tool-capable-model")
     monkeypatch.setenv("STATIC_CHAT_BASE_URL", "https://api.example.com/v1")

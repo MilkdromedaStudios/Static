@@ -17,6 +17,7 @@ import {
 } from "./ui.js";
 import { api, preview, setToken } from "./api.js";
 import { ideas, creationTypes, skillInfo } from "./catalog.js";
+import * as hosted from "./hosted.js";
 
 const state = {
   settings: null,
@@ -217,15 +218,22 @@ function updateShell() {
     (t) => t.status !== "done",
   ).length;
   const allLocal = settings.models.every((m) => m.local);
-  $("#connection-label").textContent = allLocal
-    ? "Local first. More possible."
-    : "A little help, on your terms.";
-  $("#budget-label").textContent = preview
-    ? "Example workspace · No charges"
-    : money(state.spent) +
-      " of " +
-      money(settings.daily_budget_usd) +
-      " daily budget";
+  const live = preview && hosted.connected();
+  $("#connection-label").textContent = live
+    ? "DigitBox AI · " +
+      (hosted.cachedStatus()?.plan === "pro" ? "Pro" : "Connected")
+    : allLocal
+      ? "Local first. More possible."
+      : "A little help, on your terms.";
+  $("#budget-label").textContent = live
+    ? hosted.planLabel() || "Real answers in this browser"
+    : preview
+      ? "Example workspace · No charges"
+      : money(state.spent) +
+        " of " +
+        money(settings.daily_budget_usd) +
+        " daily budget";
+  paintHostedButton();
   const recents = $("#recent");
   recents.replaceChildren();
   state.conversations
@@ -236,6 +244,187 @@ function updateShell() {
   if (!state.conversations.length)
     recents.append(el("p", "", "Your next idea starts here."));
 }
+// The preview's link to DigitBox AI: a top-bar button, a dialog and notices.
+function hostedHint() {
+  if (!preview)
+    return "Your models. Your budget. You decide what happens next.";
+  if (hosted.connected())
+    return (
+      "Live answers from DigitBox AI" +
+      (hosted.planLabel() ? " · " + hosted.planLabel() : "") +
+      ". Chats stay in this browser."
+    );
+  return hosted.hostedAvailable
+    ? "Interactive preview · Example replies. Connect DigitBox AI for real answers."
+    : "Interactive preview · Example responses, saved only in this browser.";
+}
+function paintHostedButton() {
+  const b = $("#hosted-button");
+  if (!b) return;
+  b.hidden = !(preview && hosted.hostedAvailable);
+  const live = hosted.connected();
+  b.classList.toggle("connected", live);
+  b.replaceChildren(
+    live ? el("span", "status-dot") : icon("sparkles"),
+    document.createTextNode(
+      live
+        ? "DigitBox AI" +
+            (hosted.cachedStatus()?.plan === "pro" ? " · Pro" : " · Free")
+        : "Connect AI",
+    ),
+  );
+  b.setAttribute(
+    "aria-label",
+    live ? "DigitBox AI connection" : "Connect DigitBox AI",
+  );
+}
+function connectButton(label = "Connect DigitBox account") {
+  return button(
+    label,
+    () => {
+      location.href = hosted.connectURL();
+    },
+    "button primary",
+    "sparkles",
+  );
+}
+function upgradeLink() {
+  const link = el("a", "button", "Get DigitBox Pro");
+  link.href = hosted.upgradeURL();
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  return link;
+}
+function modelPicker(select) {
+  const status = hosted.cachedStatus();
+  if (!status?.models?.length) return false;
+  select.replaceChildren();
+  for (const model of status.models) {
+    const option = el(
+      "option",
+      "",
+      model.label +
+        (model.locked ? " · Pro" : !model.configured ? " · off" : ""),
+    );
+    option.value = model.id;
+    option.disabled = model.locked || !model.configured;
+    select.append(option);
+  }
+  select.value = hosted.chosenModel();
+  select.onchange = () => hosted.chooseModel(select.value);
+  return true;
+}
+// lookup: ask DigitBox AI for the current plan details. Only after a click,
+// so the preview contacts nothing until a visitor asks it to.
+async function hostedPanel({ lookup = false } = {}) {
+  const body = el("div", "hosted-panel");
+  if (!hosted.connected()) {
+    let plans = null;
+    if (lookup)
+      try {
+        plans = await hosted.publicStatus();
+      } catch {}
+    const free = plans?.models?.find((m) => m.tier === "free");
+    const pro = plans?.models?.find((m) => m.tier === "pro");
+    body.append(
+      el(
+        "p",
+        "muted",
+        "This preview runs entirely in your browser, so real answers come from DigitBox AI. Connect your DigitBox account: the API keys stay on DigitBox’s server and never reach this page.",
+      ),
+    );
+    const list = el("div", "hosted-plans");
+    for (const [title, line, tone] of [
+      [
+        "Free DigitBox account",
+        (plans?.freeDailyLimit ?? "A few") +
+          " messages a day with " +
+          (free?.label || "Nemotron"),
+        "",
+      ],
+      [
+        "DigitBox Pro",
+        "Unlimited chats with " +
+          (pro ? pro.label + " and " : "a stronger model and ") +
+          (free?.label || "Nemotron"),
+        "pro",
+      ],
+    ]) {
+      const card = el("div", "hosted-plan " + tone);
+      card.append(el("strong", "", title), el("span", "", line));
+      list.append(card);
+    }
+    body.append(
+      list,
+      connectButton(),
+      el(
+        "p",
+        "muted small",
+        "You’ll sign in on digitbox.dev and come straight back. Chats stay in this browser; disconnect at any time.",
+      ),
+    );
+    return body;
+  }
+  let status = null;
+  try {
+    status = await hosted.hostedStatus(true);
+  } catch (error) {
+    body.append(notice(error.message, "error"));
+  }
+  if (!hosted.connected()) return hostedPanel({ lookup });
+  const rows = el("dl", "hosted-rows");
+  for (const [label, value] of [
+    ["Account", status?.user?.displayName || "DigitBox"],
+    ["Plan", hosted.planLabel(status) || "—"],
+  ])
+    rows.append(el("dt", "", label), el("dd", "", value));
+  body.append(rows);
+  const select = el("select");
+  if (modelPicker(select)) {
+    const wrap = el("label", "field");
+    wrap.append(el("span", "", "Model"), select);
+    body.append(wrap);
+  }
+  if (status && !status.configured)
+    body.append(
+      notice(
+        "DigitBox AI isn’t switched on yet. Its owner needs to add an API key.",
+        "error",
+      ),
+    );
+  const actions = el("div", "form-actions");
+  if (status?.plan !== "pro") actions.append(upgradeLink());
+  actions.append(
+    button(
+      "Disconnect",
+      async () => {
+        await hosted.disconnect();
+        closeModal();
+        toast("DigitBox AI disconnected");
+      },
+      "button",
+    ),
+  );
+  body.append(actions);
+  return body;
+}
+async function openHosted() {
+  showModal(
+    hosted.connected()
+      ? "Connected to DigitBox AI."
+      : "Real answers, from DigitBox AI.",
+    el("p", "muted", "Checking DigitBox AI…"),
+  );
+  const panel = await hostedPanel({ lookup: true });
+  if (modal.open) $("#modal-content").replaceChildren(panel);
+}
+window.addEventListener("static-hosted", () => {
+  paintHostedButton();
+  updateShell();
+  $$(".composer-hint").forEach((n) => (n.textContent = hostedHint()));
+  const select = $("#mode");
+  if (select && preview && hosted.connected()) modelPicker(select);
+});
 async function refreshData() {
   const [config, conversations, tasks] = await Promise.all([
     api("/api/settings"),
@@ -386,6 +575,10 @@ function composer({ home = false } = {}) {
     option.value = value;
     mode.append(option);
   });
+  if (preview && hosted.connected()) {
+    mode.setAttribute("aria-label", "DigitBox AI model");
+    modelPicker(mode);
+  }
   tools.append(attach, mode);
   const send = el("button", "send-button");
   send.id = "send";
@@ -408,16 +601,7 @@ function composer({ home = false } = {}) {
       if (send.isConnected) send.disabled = false;
     }
   };
-  wrap.append(
-    form,
-    el(
-      "p",
-      "composer-hint",
-      preview
-        ? "Interactive preview · Example responses, saved only in this browser."
-        : "Your models. Your budget. You decide what happens next.",
-    ),
-  );
+  wrap.append(form, el("p", "composer-hint", hostedHint()));
   return wrap;
 }
 function renderAttachments() {
@@ -914,14 +1098,32 @@ async function renderChat() {
     el(
       "p",
       "",
-      preview
+      preview && !hosted.connected()
         ? "An example of working with Static"
         : "Talk it through. Make it happen.",
     ),
   );
   top.append(mark, copy);
-  if (preview) top.append(badge("Demo", "purple"));
+  if (preview)
+    top.append(
+      hosted.connected()
+        ? badge("DigitBox AI", "green")
+        : badge("Demo", "purple"),
+    );
   root.append(top);
+  if (preview && hosted.hostedAvailable && !hosted.connected()) {
+    const n = el("div", "notice hosted-notice");
+    n.append(
+      icon("sparkles"),
+      el(
+        "span",
+        "",
+        "These are example replies. Connect your DigitBox account for real answers: free accounts get a few messages a day with Nemotron, and DigitBox Pro is unlimited.",
+      ),
+      connectButton("Connect"),
+    );
+    root.append(n);
+  }
   const messages = el("div", "messages");
   messages.id = "messages";
   root.append(messages);
@@ -1033,17 +1235,43 @@ async function pollRun(runId, generation) {
         "span",
         "",
         {
-          running: preview ? "Showing an example…" : "Working on it…",
+          running:
+            preview && !run.hosted ? "Showing an example…" : "Working on it…",
           queued: "Ready to begin…",
-          completed: preview ? "Example complete" : "Work completed",
+          completed:
+            preview && !run.hosted ? "Example complete" : "Work completed",
           awaiting_approval: "A decision for you",
           cancelled: "Stopped",
           failed: "This run needs attention",
           interrupted: "Interrupted — send a follow-up to continue",
         }[run.status] || run.status,
       ),
-      el("span", "muted", "· " + money(run.spent)),
+      el(
+        "span",
+        "muted",
+        "· " +
+          (run.hosted ? hosted.planLabel() || "DigitBox AI" : money(run.spent)),
+      ),
     );
+    // A live DigitBox AI reply appears as it streams in.
+    let draft = $("#run-draft");
+    if (run.partial && activeStatuses.includes(run.status)) {
+      if (!draft) {
+        draft = el("article", "message assistant draft");
+        draft.id = "run-draft";
+        draft.setAttribute("aria-label", "Static is replying");
+        const logo = el("img");
+        logo.src = "./assets/static.svg";
+        logo.alt = "";
+        const copy = el("div", "message-content");
+        draft.append(logo, copy);
+        $("#messages")?.append(draft);
+      }
+      $(".message-content", draft).replaceChildren(
+        el("div", "message-label", "Static"),
+        markdown(run.partial, downloadFile),
+      );
+    } else draft?.remove();
     if (activeStatuses.includes(run.status))
       strip.append(
         button(
@@ -1195,12 +1423,19 @@ async function pollRun(runId, generation) {
     if (run.error && !$("#run-error")) {
       const error = notice(run.error, "error");
       error.id = "run-error";
+      if (["limit_reached", "pro_required"].includes(run.error_code))
+        error.append(upgradeLink());
+      if (
+        run.error_code === "signed_out" ||
+        (run.hosted && !hosted.connected())
+      )
+        error.append(connectButton("Connect again"));
       area.append(error);
     }
     if (activeStatuses.includes(run.status))
       state.poll = setTimeout(
         () => pollRun(runId, generation),
-        run.status === "awaiting_approval" ? 2500 : 900,
+        run.hosted ? 250 : run.status === "awaiting_approval" ? 2500 : 900,
       );
     else {
       const data = await api("/api/conversations/" + state.conv);
@@ -1236,6 +1471,28 @@ async function downloadFile(id, name) {
   } catch (error) {
     toast(error.message, true);
   }
+}
+// DigitBox AI has no tools in the preview, so Create asks for a text file.
+function hostedInstructions(type, format) {
+  if (type === "document") {
+    const files = {
+      pdf: "an HTML file (.html) that prints cleanly to PDF",
+      docx: "a Markdown file (.md) that pastes into Word",
+      md: "a Markdown file (.md)",
+      csv: "a CSV spreadsheet file (.csv)",
+      html: "an HTML file (.html)",
+      json: "a JSON file (.json)",
+      txt: "a plain text file (.txt)",
+    };
+    return "Create this as " + (files[format] || files.md) + ": ";
+  }
+  if (type === "image")
+    return "Create an original SVG image file (.svg) of this: ";
+  if (type === "video")
+    return "Write a shot-by-shot video storyboard as a Markdown file (.md) for this: ";
+  if (type === "3d")
+    return "Create an OBJ 3D model file (.obj) with real vertices and faces for this: ";
+  return "Help with this everyday task. When it helps, make an email draft (.eml) or calendar event (.ics) file, and ask for any missing date or timezone: ";
 }
 function renderCreate() {
   const root = el("div");
@@ -1287,9 +1544,11 @@ function renderCreate() {
       el(
         "p",
         "muted small",
-        preview
-          ? "Try it out with a downloadable example. This preview uses scripted responses."
-          : type.note,
+        preview && hosted.connected()
+          ? "DigitBox AI makes a downloadable text file: Markdown, CSV, SVG, OBJ, calendar or email."
+          : preview
+            ? "Try it out with a downloadable example. This preview uses scripted responses."
+            : type.note,
       ),
     );
     const actions = el("div", "form-actions"),
@@ -1298,7 +1557,9 @@ function renderCreate() {
     submit.append(
       icon("sparkles"),
       document.createTextNode(
-        preview ? "Try an example" : "Create with Static",
+        preview && !hosted.connected()
+          ? "Try an example"
+          : "Create with Static",
       ),
     );
     actions.append(submit);
@@ -1315,15 +1576,17 @@ function renderCreate() {
       }
       const formatValue = format?.input.value;
       const instructions =
-        type.id === "document"
-          ? `Create a ${formatValue} document file using file_create. `
-          : type.id === "3d"
-            ? formatValue === "procedural"
-              ? "Create local OBJ geometry using mesh_create. "
-              : "Create a generative 3D model using media_generate, kind 3d. "
-            : ["image", "video"].includes(type.id)
-              ? `Generate a ${type.id} using media_generate. `
-              : "Help with this everyday task. Use email_draft or calendar_create for a downloadable draft or event file when appropriate. Ask for any missing date or timezone. ";
+        preview && hosted.connected()
+          ? hostedInstructions(type.id, formatValue)
+          : type.id === "document"
+            ? `Create a ${formatValue} document file using file_create. `
+            : type.id === "3d"
+              ? formatValue === "procedural"
+                ? "Create local OBJ geometry using mesh_create. "
+                : "Create a generative 3D model using media_generate, kind 3d. "
+              : ["image", "video"].includes(type.id)
+                ? `Generate a ${type.id} using media_generate. `
+                : "Help with this everyday task. Use email_draft or calendar_create for a downloadable draft or event file when appropriate. Ask for any missing date or timezone. ";
       try {
         await sendMessage(instructions + request);
       } catch (error) {
@@ -1365,9 +1628,11 @@ function renderCreate() {
       el(
         "span",
         "",
-        preview
-          ? "No model calls or charges in the preview."
-          : "Paid generation always asks for your approval.",
+        preview && hosted.connected()
+          ? "Uses your DigitBox AI plan. Nothing is charged to you here."
+          : preview
+            ? "No model calls or charges in the preview."
+            : "Paid generation always asks for your approval.",
       ),
     );
     examples.append(n);
@@ -2208,6 +2473,20 @@ async function renderConnections() {
         "Connections in this preview are examples. No endpoints are contacted and no API keys are collected. Run the Python app to connect real models.",
       ),
     );
+  if (preview && hosted.hostedAvailable) {
+    const panel = el("section", "panel hosted-section");
+    panel.id = "hosted-panel";
+    panel.append(
+      panelHeading(
+        "Real answers, from DigitBox AI.",
+        "The preview’s chats can use a real model through your DigitBox account.",
+      ),
+    );
+    root.append(panel);
+    hostedPanel().then((body) => {
+      if (panel.isConnected) panel.append(body);
+    });
+  }
   const metrics = el("div", "connection-summary");
   for (const [label, value, detail] of [
     [
@@ -2599,8 +2878,14 @@ async function init() {
   themeButton();
   $("#preview-badge").hidden = !preview;
   $("#runtime-label").textContent = preview
-    ? "Interactive preview · Browser-only examples"
+    ? hosted.hostedAvailable
+      ? "Interactive preview · Real answers with DigitBox AI"
+      : "Interactive preview · Browser-only examples"
     : "Static · Your personal AI workspace";
+  $("#hosted-button").onclick = () => openHosted().catch(fatal);
+  paintHostedButton();
+  if (preview && hosted.connected())
+    hosted.hostedStatus().catch((error) => toast(error.message, true));
   try {
     await refreshData();
     await route();

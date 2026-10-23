@@ -44,7 +44,16 @@ python -m http.server 8080 --directory site
 
 Open **http://localhost:8080**. Do not open `index.html` directly as a `file://` URL: browsers restrict JavaScript modules there.
 
-The preview is deliberately simulated. Its fictional tasks and example files live in that browser's local storage. It makes **no model, search, payment, or backend API calls**, collects no API keys, and cannot host the Python server on GitHub Pages. The full app never silently falls back to demo responses. Reset examples in Settings; download anything you want to keep first.
+**Real answers with DigitBox AI.** GitHub Pages can't run the Python server or keep API keys, so the preview's chats borrow a model from [DigitBox AI](https://digitbox.dev/ai). Choose **Connect AI** at the top of the page and confirm with a DigitBox account:
+
+| DigitBox plan | Models | Limit |
+|---|---|---|
+| Free account | Nemotron 3.5 Lightning | A few messages a day (5 by default) |
+| DigitBox Pro | Claude Haiku 5.5 and Nemotron 3.5 Lightning | Unlimited |
+
+Replies stream in, and files the model writes (Markdown, CSV, SVG images, OBJ models, calendar events, email drafts) land in the Library as downloads. The model keys stay on DigitBox's server: the preview only receives an AI-only token that can't see the DigitBox account. Setup for the keys and plans is in DigitBox's [DIGITBOX_AI_SETUP.md](https://github.com/MilkdromedaStudios/DigitBox/blob/main/docs/DIGITBOX_AI_SETUP.md).
+
+Until you connect, the preview gives clearly labelled example replies and contacts nothing outside its own files. Its tasks and files live in that browser's local storage; it makes **no search or payment calls**, collects no API keys, and cannot host the Python server on GitHub Pages. The full app never silently falls back to demo responses. Reset examples in Settings; download anything you want to keep first.
 
 The **Publish Static preview** workflow builds on every main-branch push. It retains a downloadable `static-preview` artifact even before Pages is enabled. Once **Settings → Pages → Source → GitHub Actions** is selected, run or rerun that workflow to publish.
 

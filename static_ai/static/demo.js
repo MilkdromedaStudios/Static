@@ -1,5 +1,14 @@
-// Deliberately deterministic, browser-only examples. Never called by the Python app.
+// Browser-only workspace for the GitHub Pages preview. Never called by the Python app.
+// Chats get deterministic example replies, or real ones once DigitBox AI is connected.
 import { skillInfo } from "./catalog.js";
+import {
+  chosenModel,
+  connected,
+  extractFiles,
+  hostedAvailable,
+  hostedChat,
+  hostedStatus,
+} from "./hosted.js";
 const KEY = "static-preview-v2";
 const id = () => crypto.randomUUID().replaceAll("-", "");
 const now = () => new Date().toISOString();
@@ -134,6 +143,7 @@ function seed() {
         { role: "user", content: "Help me make my workspace a little calmer." },
         {
           role: "assistant",
+          example: true,
           content:
             "**A little room to think.**\nThis is an example conversation. In the connected app, I would ask about your space and budget, research options and compare total costs.\nYour sample task is saved in Tasks. You can edit its goal and checklist.",
         },
@@ -141,6 +151,7 @@ function seed() {
       c2: [
         {
           role: "assistant",
+          example: true,
           content:
             "**A weekend without a packed schedule.**\nThis sample task is ready for a destination and a budget. The connected app can research a plan and create calendar files for you to import.",
         },
@@ -148,6 +159,7 @@ function seed() {
       c3: [
         {
           role: "assistant",
+          example: true,
           content:
             "**A starting point for your next idea.**\nThe preview Library contains an original SVG illustration, a Markdown checklist and a sample CSV. These are downloadable examples, not live AI generations.",
         },
@@ -182,6 +194,12 @@ try {
 } catch {
   state = seed();
 }
+// A live reply can't survive a reload; its run stops where it was.
+for (const run of Object.values(state.runs))
+  if (run.hosted && ["queued", "running"].includes(run.status)) {
+    run.status = "interrupted";
+    delete run.partial;
+  }
 function save() {
   try {
     localStorage.setItem(KEY, JSON.stringify(state));
@@ -305,10 +323,102 @@ function finish(run, approved = false) {
       "Here is how we could approach it:\n1. Define the outcome and any constraints.\n2. Gather the information we need.\n3. Create the deliverable and review it together.\nTry Create for downloadable examples, or save a goal in Tasks. The connected Python app uses your models to tailor its response.";
   if (file)
     response += `\n[Download ${file.name}](/api/artifacts/${file.id}/download)`;
+  if (hostedAvailable)
+    response +=
+      "\n**Want a real answer?** Connect DigitBox AI at the top of the page. Free accounts get a few messages a day; DigitBox Pro is unlimited.";
   const conv = (state.messages[run.conversation_id] ||= []);
-  conv.push({ id: id(), role: "assistant", content: response, created: now() });
+  conv.push({
+    id: id(),
+    role: "assistant",
+    content: response,
+    created: now(),
+    example: true,
+  });
   run.status = "completed";
   run.events.push({ id: 4, kind: "status", data: { status: "completed" } });
+}
+const controllers = new Map();
+// The conversation as the model should see it: no example replies, and the
+// text of any attached files added to the newest message.
+function history(run, attachments) {
+  const messages = (state.messages[run.conversation_id] || [])
+    .filter((m) => ["user", "assistant"].includes(m.role) && !m.example)
+    .map((m) => ({ role: m.role, content: m.content }));
+  const files = state.artifacts.filter((a) => attachments.includes(a.id));
+  const last = messages.at(-1);
+  if (last && files.length)
+    last.content += files
+      .map(
+        (f) =>
+          "\n\nAttached file: " +
+          f.name +
+          "\n```\n" +
+          String(f.content).slice(0, 20000) +
+          "\n```",
+      )
+      .join("");
+  return messages;
+}
+function reply(run, text, model) {
+  const content = extractFiles(text, (name, mime, body) => {
+    const file = makeArtifact(run, name, mime, body);
+    return `[Download ${name}](/api/artifacts/${file.id}/download)`;
+  });
+  (state.messages[run.conversation_id] ||= []).push({
+    id: id(),
+    role: "assistant",
+    content,
+    model,
+    created: now(),
+  });
+}
+async function runHosted(run, attachments) {
+  const controller = new AbortController();
+  controllers.set(run.id, controller);
+  let label = "DigitBox AI";
+  try {
+    const status = await hostedStatus();
+    const model = chosenModel();
+    label = status?.models?.find((m) => m.id === model)?.label || label;
+    run.events.push({
+      id: 2,
+      kind: "model",
+      data: {
+        name: label,
+        role: "DigitBox AI " + (status?.plan === "pro" ? "Pro" : "Free"),
+      },
+    });
+    const result = await hostedChat({
+      messages: history(run, attachments),
+      model,
+      context: {
+        name: state.settings.display_name,
+        preferences: state.settings.preferences,
+      },
+      signal: controller.signal,
+      onText: (text) => {
+        run.partial = text;
+      },
+    });
+    reply(run, result.text, result.model || label);
+    run.status = "completed";
+  } catch (error) {
+    const partial = run.partial || error.partial || "";
+    if (partial) reply(run, partial + "\n\n(Stopped before the end.)", label);
+    if (error.name === "AbortError") run.status = "cancelled";
+    else {
+      run.status = "failed";
+      run.error = error.message;
+      run.error_code = error.code || "";
+    }
+  } finally {
+    controllers.delete(run.id);
+    delete run.partial;
+    run.events.push({ id: 3, kind: "status", data: { status: run.status } });
+    try {
+      save();
+    } catch {}
+  }
 }
 export async function demoRequest(path, method = "GET", body) {
   const url = new URL("https://preview.invalid" + path);
@@ -388,6 +498,7 @@ export async function demoRequest(path, method = "GET", body) {
         content: data.message,
         created: now(),
       });
+      const live = connected();
       result = {
         id: id(),
         conversation_id: value,
@@ -399,16 +510,17 @@ export async function demoRequest(path, method = "GET", body) {
         error: "",
         created: now(),
         ticks: 0,
-        events: [
-          { id: 1, kind: "status", data: { status: "running" } },
-          {
-            id: 2,
-            kind: "model",
-            data: { name: "Scripted preview", model: "Browser demo" },
-          },
-        ],
+        hosted: live,
+        events: [{ id: 1, kind: "status", data: { status: "running" } }],
       };
+      if (!live)
+        result.events.push({
+          id: 2,
+          kind: "model",
+          data: { name: "Scripted preview", model: "Browser demo" },
+        });
       state.runs[result.id] = result;
+      if (live) runHosted(result, data.attachments || []);
     } else if (action === "upload") {
       const file = data.get("file");
       if (!file || file.size > 500000)
@@ -481,12 +593,17 @@ export async function demoRequest(path, method = "GET", body) {
     result = state.runs[value];
     if (!result) throw Error("Run not found");
     if (action === "stop") {
+      controllers.get(value)?.abort();
       result.status = "cancelled";
       state.approvals
         .filter((a) => a.run_id === value && a.status === "pending")
         .forEach((a) => (a.status = "denied"));
     } else {
-      if (["running", "queued"].includes(result.status) && ++result.ticks >= 2)
+      if (
+        !result.hosted &&
+        ["running", "queued"].includes(result.status) &&
+        ++result.ticks >= 2
+      )
         finish(result);
       result = {
         ...result,
