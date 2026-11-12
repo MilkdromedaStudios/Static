@@ -18,6 +18,7 @@ PROVIDERS = {
     "3": ("openai", "Custom OpenAI-compatible API", "", "STATIC_COMPAT_API_KEY"),
     "4": ("claude_code", "Installed Claude Code CLI", "", ""),
     "5": ("openai", "Existing local Ollama (NO DOWNLOAD)", "http://localhost:11434/v1", ""),
+    "6": ("anthropic", "Custom Anthropic-compatible API", "", "STATIC_CUSTOM_ANTHROPIC_KEY"),
 }
 
 
@@ -64,6 +65,7 @@ def configure(data_dir, existing=None):
     print("3) Custom API (cloud HTTPS or local HTTP)")
     print("4) Existing Claude Code CLI login")
     print("5) Existing local Ollama model (no download)")
+    print("6) Custom Anthropic Messages API endpoint")
     print("0) Cancel setup")
     while True:
         choice = _ask("Provider", "1")
@@ -71,14 +73,14 @@ def configure(data_dir, existing=None):
             return False
         if choice in PROVIDERS:
             break
-        print("Choose 0–5.")
+        print("Choose 0–6.")
     provider, name, base, key_env = PROVIDERS[choice]
     model_name = _ask("Exact model ID (check your provider's model list)")
     if not model_name:
         print("No model ID entered; configuration unchanged.")
         return False
     custom_local = False
-    if choice == "3":
+    if choice in ("3", "6"):
         base = _ask("Custom API base URL (https://host/v1 or http://localhost:8000/v1)")
         parsed = urlsplit(base)
         custom_local = parsed.scheme == "http" and parsed.hostname in LOCAL_HOSTS
@@ -95,7 +97,7 @@ def configure(data_dir, existing=None):
             return False
         print("Static uses your existing Claude Code CLI login.")
     secret = None
-    if choice == "3":
+    if choice in ("3", "6"):
         default = "n" if custom_local else "y"
         if _ask("Does this API require a Bearer API key? (y/N)", default).lower() not in ("y", "yes"):
             key_env = ""
