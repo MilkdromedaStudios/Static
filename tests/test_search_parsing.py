@@ -14,8 +14,11 @@ def test_html_results_decode_redirect_and_snippet():
     """
     results = parse_results(body, "https://html.duckduckgo.com/html/")
     assert results == [
-        {"title": "Example guide", "url": "https://example.com/guide",
-         "snippet": "Useful information"}
+        {
+            "title": "Example guide",
+            "url": "https://example.com/guide",
+            "snippet": "Useful information",
+        }
     ]
 
 
