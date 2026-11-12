@@ -245,7 +245,10 @@ class Engine:
                 )
                 state["pending"].pop(0)
                 self.store.run_state(run_id, state)
-            if not state.get("unlimited_steps", False) and state["steps"] >= self.config.settings.max_steps:
+            if (
+                not state.get("unlimited_steps", False)
+                and state["steps"] >= self.config.settings.max_steps
+            ):
                 raise ValueError(
                     "Step limit reached. Completed files are saved. Send a narrower follow-up to continue."
                 )
