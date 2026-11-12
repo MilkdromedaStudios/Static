@@ -30,3 +30,19 @@ def test_existing_ollama_requires_no_download(tmp_path):
     with patch("builtins.input", side_effect=lambda *_: next(answers)):
         assert configure(tmp_path)
     assert Config(tmp_path).settings.models[0].local is True
+
+def test_custom_local_api_without_key(tmp_path):
+    answers = iter(["3", "my-local-model", "http://localhost:8000/v1", "n"])
+    with patch("builtins.input", side_effect=lambda *_: next(answers)):
+        assert configure(tmp_path)
+    model = Config(tmp_path).settings.models[0]
+    assert model.base_url == "http://localhost:8000/v1"
+    assert model.key_env == ""
+    assert model.local is True
+
+
+def test_custom_remote_http_rejected(tmp_path):
+    answers = iter(["3", "my-model", "http://example.com/v1"])
+    with patch("builtins.input", side_effect=lambda *_: next(answers)):
+        assert not configure(tmp_path)
+    assert not (tmp_path / "settings.json").exists()
