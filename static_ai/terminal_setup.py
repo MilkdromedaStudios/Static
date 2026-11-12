@@ -96,8 +96,9 @@ def configure(data_dir, existing=None):
             return False
         print("Static uses your existing Claude Code CLI login.")
     secret = None
-    if choice == "3" and custom_local:
-        if _ask("Does your local API need a key? (y/N)", "n").lower() not in ("y", "yes"):
+    if choice == "3":
+        default = "n" if custom_local else "y"
+        if _ask("Does this API require a Bearer API key? (y/N)", default).lower() not in ("y", "yes"):
             key_env = ""
     if key_env:
         secret = getpass.getpass("API key (hidden; Enter to reuse existing key): ").strip()
