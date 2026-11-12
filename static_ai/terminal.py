@@ -115,6 +115,7 @@ class Terminal:
         self.pending_attachments = []
         self.active_run = run["id"]
         last, seen_approvals = 0, set()
+        objective_complete = False
         try:
             while True:
                 result = await self.request(
@@ -130,7 +131,10 @@ class Terminal:
                     elif kind == "artifact":
                         print(f"  Saved: {data.get('name', 'artifact')}")
                     elif kind == "answer":
-                        print("\nStatic:\n" + data.get("content", "") + "\n")
+                        content = data.get("content", "")
+                        if "STATIC_OBJECTIVE_COMPLETE" in content:
+                            objective_complete = True
+                        print("\nStatic:\n" + content + "\n")
                     elif kind == "error":
                         print("Error:", data.get("message", ""), file=sys.stderr)
                 for approval in result["approvals"]:
@@ -153,7 +157,7 @@ class Terminal:
                     if result["status"] != "completed":
                         print(f"Run {result['status']}: {result.get('error', '')}")
                     self.continuous_spent += float(result.get("spent") or 0)
-                    return result["status"]
+                    return "objective_complete" if objective_complete and result["status"] == "completed" else result["status"]
                 await asyncio.sleep(0.35)
         except (KeyboardInterrupt, asyncio.CancelledError):
             await self.request("POST", f"/api/runs/{self.active_run}/stop")
@@ -410,6 +414,8 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                             finally:
                                 self.budget = previous_budget
                             if status != "completed":
+                                if status == "objective_complete":
+                                    print("Objective complete. Continuous mode stopped.")
                                 self.continuous = False
                                 break
                             objective = ("Continue the prior objective, taking the next useful step. "
