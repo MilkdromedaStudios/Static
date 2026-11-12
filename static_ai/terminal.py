@@ -109,6 +109,7 @@ class Terminal:
                 "message": message,
                 "mode": self.mode,
                 "attachments": self.pending_attachments,
+                "unlimited_steps": self.continuous,
                 **({"budget_usd": self.budget} if self.budget is not None else {}),
             },
         )

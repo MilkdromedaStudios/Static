@@ -108,12 +108,14 @@ class Engine:
         if not run or run["status"] not in ("queued", "running"):
             return
         state = json.loads(run["state"] or "{}")
-        if not state:
+        if "messages" not in state:
+            unlimited_steps = state.get("unlimited_steps", False)
             history = self.store.query(
                 "SELECT role,content FROM messages WHERE conversation_id=? ORDER BY created DESC LIMIT 16",
                 (run["conversation_id"],),
             )[::-1]
             state = {
+                "unlimited_steps": unlimited_steps,
                 "messages": [
                     {
                         "role": "system",
@@ -243,7 +245,10 @@ class Engine:
                 )
                 state["pending"].pop(0)
                 self.store.run_state(run_id, state)
-            if state["steps"] >= self.config.settings.max_steps:
+            if (
+                not state.get("unlimited_steps", False)
+                and state["steps"] >= self.config.settings.max_steps
+            ):
                 raise ValueError(
                     "Step limit reached. Completed files are saved. Send a narrower follow-up to continue."
                 )
