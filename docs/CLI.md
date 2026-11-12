@@ -82,3 +82,53 @@ shell execution, git commit/push automation, or automatic test execution yet.
 The optional browser tools remain approval-gated.
 
 This is an incremental Claude Code-style experience, not feature parity.
+
+## One-command setup (recommended, including Raspberry Pi 5)
+
+Run from the checked-out Static repository using Python 3.11+:
+
+```bash
+python3 bootstrap.py
+```
+
+On Windows use `py bootstrap.py`. The launcher automatically creates
+`.venv`, installs Static and the interactive terminal dependencies, and
+starts the terminal. No manual `pip install`, activation, or virtualenv
+management is required. Later starts reuse the environment. Run
+`python3 bootstrap.py --update` after updating source code to reinstall.
+
+For Raspberry Pi OS use 64-bit Python 3.11+ and an available network connection
+for initial package installation. Browser automation is optional and not
+installed by default; Chromium can be resource-intensive. The terminal does
+not launch a browser or web server and caps command output to 16 KiB.
+
+The `code_run` tool executes an argv array (not shell strings) in the
+workspace after explicit approval for each command. Each process has a
+maximum 120-second timeout and no stdin. Use `STATIC_CODE_ROOT` to specify
+the project directory; otherwise the launcher uses the directory from
+which it was started. **This is not an OS sandbox**: approved commands
+have the user's normal filesystem/network permissions. Only approve
+commands you understand, and do not run Static as root.
+
+## Linux desktop app: one-command install
+
+From a Linux terminal (including Raspberry Pi OS with a desktop):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MilkdromedaStudios/Static/main/install-linux.sh | bash
+```
+
+The installer clones Static into `~/.local/share/static-code`, creates a
+private virtual environment, installs dependencies, adds the `static-code`
+command to `~/.local/bin`, and registers a **Static Code** application in
+your desktop's application menu. Clicking it opens a terminal running Static
+Code. Project files default to `~/StaticWorkspace`. No root permissions
+or global Python packages are required.
+
+Requirements: Git, curl, Python 3.11+, Python venv/ensurepip, internet on
+first install, and a supported graphical terminal emulator. If `curl`
+is missing, install it using your distro package manager. For safety, you
+can inspect the installer before running it.
+
+To update, rerun the same command. On machines without a graphical desktop,
+use `~/.local/bin/static-code` from an existing terminal.
