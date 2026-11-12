@@ -168,3 +168,5 @@ Additional terminal commands: `/rename TITLE`, `/download ID PATH`,
 `/task-done ID`, `/task-reopen ID`, `/media-refresh`, `/media-cancel ID`,
 `/mcp-reload`, and `/budget USD`. Commands use the same backend endpoints
 as the web application.
+
+Files uploaded with `/upload PATH` are attached to the **next** chat message; they are not automatically sent until you submit that message.
