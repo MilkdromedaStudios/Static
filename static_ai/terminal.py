@@ -13,9 +13,10 @@ from pathlib import Path
 import httpx
 
 from .app import create_app
+from .terminal_setup import configure, load_credentials
 
 COMMANDS = ("/help", "/exit", "/quit", "/new", "/resume", "/sessions",
-            "/history", "/tasks", "/skills", "/files", "/mode", "/status", "/clear")
+            "/history", "/tasks", "/skills", "/files", "/mode", "/status", "/clear", "/setup", "/models", "/mcp", "/media")
 
 
 class Terminal:
@@ -26,6 +27,7 @@ class Terminal:
         self.conversation_id = conversation_id
         self.session = None
         self.active_run = None
+        self.config = None
 
     async def request(self, method, path, **kwargs):
         response = await self.client.request(method, path,
@@ -112,6 +114,9 @@ class Terminal:
   /resume ID           Resume an existing conversation (ID or unique prefix)
   /history             Show messages in this conversation
   /mode economy|local  Switch model routing
+  /setup               Configure provider and API key
+  /models              Show models and test connectivity
+  /mcp /media          Inspect integrations and media jobs
   /status              Show session and mode
   /tasks /skills /files  Inspect existing Static data
   /clear               Clear terminal display (does not erase messages)
@@ -144,13 +149,25 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 print("Mode:", self.mode)
             else:
                 print("Choose /mode economy or /mode local")
+        elif command == "/setup":
+            if await asyncio.to_thread(configure, self.data_dir, self.config):
+                print("Provider saved. Run /models to test.")
+        elif command == "/models":
+            data = await self.request("GET", "/api/settings")
+            for model in data["settings"]["models"]:
+                print(f"{model['id']}: {model['provider']} / {model['model']}")
+                try:
+                    result = await self.request("POST", f"/api/models/{model['id']}/test")
+                    print("  Connection:", json.dumps(result, ensure_ascii=False)[:400])
+                except httpx.HTTPStatusError as exc:
+                    print("  Test failed:", exc.response.status_code)
         elif command == "/status":
             print(f"Session: {self.conversation_id}\nMode: {self.mode}\nData: {self.data_dir}")
         elif command == "/clear":
             print("\033[2J\033[H", end="")
-        elif command in ("/tasks", "/skills", "/files"):
+        elif command in ("/tasks", "/skills", "/files", "/mcp", "/media"):
             endpoint = {"/tasks": "/api/tasks", "/skills": "/api/skills",
-                        "/files": "/api/artifacts"}[command]
+                        "/files": "/api/artifacts", "/mcp": "/api/mcp", "/media": "/api/media"}[command]
             print(json.dumps(await self.request("GET", endpoint), indent=2, ensure_ascii=False))
         else:
             print("Unknown command. Use /help.")
@@ -180,11 +197,21 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
 
 
 async def run(args):
+    from .config import Config
+    load_credentials(args.data_dir)
+    config = Config(Path(args.data_dir))
+    if not config.path.exists() and not os.getenv("STATIC_CHAT_MODEL"):
+        if not sys.stdin.isatty():
+            raise RuntimeError("First run requires an interactive terminal for provider setup.")
+        print("Welcome to Static Code. Choose your AI provider before chatting.")
+        if not await asyncio.to_thread(configure, args.data_dir, config):
+            raise RuntimeError("No provider configured. Relaunch to finish setup.")
     app = create_app(args.data_dir)
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
                                      base_url="http://localhost", timeout=30) as client:
             terminal = Terminal(client, args.data_dir, args.mode, args.conversation)
+            terminal.config = app.state.config
             await terminal.loop(args.prompt)
 
 
