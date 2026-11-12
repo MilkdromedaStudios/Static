@@ -46,3 +46,12 @@ def test_custom_remote_http_rejected(tmp_path):
     with patch("builtins.input", side_effect=lambda *_: next(answers)):
         assert not configure(tmp_path)
     assert not (tmp_path / "settings.json").exists()
+
+def test_custom_https_without_key(tmp_path):
+    answers = iter(["3", "remote-model", "https://models.example.org/api/v1", "n", "0", "0", "YES"])
+    with patch("builtins.input", side_effect=lambda *_: next(answers)):
+        assert configure(tmp_path)
+    model = Config(tmp_path).settings.models[0]
+    assert model.base_url == "https://models.example.org/api/v1"
+    assert model.key_env == ""
+    assert model.local is False
