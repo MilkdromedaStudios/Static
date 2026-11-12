@@ -73,7 +73,8 @@ async def search(ctx, args):
                 )
         if not results:
             raise ValueError(
-                "Free search returned no results or was rate limited. Try a direct URL or configure Brave Search."
+                "DuckDuckGo returned no parseable results or rate limited this client. "
+                "Do not repeatedly retry the same search. Try a known public URL or configure Brave Search."
             )
     result = {
         "untrusted_web_content": True,
