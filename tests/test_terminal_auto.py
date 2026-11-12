@@ -1,4 +1,5 @@
 """Terminal auto-mode regression tests using an isolated fake client."""
+
 from unittest.mock import AsyncMock
 
 import pytest
