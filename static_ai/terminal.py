@@ -459,6 +459,8 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                             if status != "completed":
                                 if status == "objective_complete":
                                     print("Objective complete. Continuous mode stopped.")
+                                else:
+                                    print("Continuous mode stopped:", status)
                                 self.continuous = False
                                 break
                             objective = (

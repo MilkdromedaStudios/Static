@@ -265,10 +265,13 @@ class Engine:
             )
             calls = reply.get("tool_calls", [])
             if not calls:
-                content = (
-                    reply["content"]
-                    or "The model returned an empty answer. Try a different model or a more specific request."
-                )
+                content = reply.get("content") or ""
+                if not content.strip():
+                    raise ValueError(
+                        "The model returned an empty answer without any tool calls. "
+                        "Continuous mode has stopped to avoid repeating empty requests. "
+                        "Check the model's output-token limit, provider response, and tool support."
+                    )
                 self.store.message(run["conversation_id"], "assistant", content)
                 state["messages"].append(reply)
                 self.store.run_state(run_id, state, "completed")
