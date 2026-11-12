@@ -196,3 +196,7 @@ upstream code: review changes and use pinned releases for higher assurance.
 ## Saved conversations
 
 Static Code saves chat messages to its local SQLite database automatically. It also remembers the active conversation ID and restores that chat on the next launch. Use `/new` to start a separate saved conversation, `/sessions` to list chats, `/resume ID` to switch, `/history` to view messages, and `/save` to explicitly mark the current chat as the one to reopen next time. `/save` does not export or back up the database.
+
+## Combined automation mode
+
+Use `/both on` to enable continuous execution and automatic tool approvals together. You must choose an estimated spending cap and type the exact confirmation `ENABLE BOTH`. This is high risk: tools may execute commands or change files without asking again, and the cap is an estimate, not a provider-side billing guarantee. Use `/both off` to disable both options, or `Ctrl+C` to stop the active run. Both switches default to off on each new terminal launch. The assistant is also prompted to explain its work and results more fully.
