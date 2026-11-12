@@ -39,6 +39,23 @@ WORK_DIR="$HOME/StaticWorkspace"
 mkdir -p "$WORK_DIR"
 cd "$WORK_DIR"
 export STATIC_CODE_ROOT="$WORK_DIR"
+# Check upstream on each launch. Only fast-forward; keep existing install if offline.
+# No model downloads. Updates to application code require trusted upstream.
+if command -v git >/dev/null 2>&1 && [[ -d "$APP_DIR/.git" ]]; then
+  if timeout 12 git -C "$APP_DIR" fetch -q --depth 1 origin main 2>/dev/null; then
+    CURRENT="$(git -C "$APP_DIR" rev-parse HEAD)"
+    LATEST="$(git -C "$APP_DIR" rev-parse FETCH_HEAD)"
+    if [[ "$CURRENT" != "$LATEST" ]]; then
+      echo "[Static] Update found. Installing latest version..."
+      if git -C "$APP_DIR" merge --ff-only FETCH_HEAD && (cd "$APP_DIR" && python3 -c 'import bootstrap; bootstrap.install(force=True)'); then
+        echo "[Static] Updated. Launching..."
+      else
+        echo "[Static] Update failed; check installation before continuing." >&2
+        exit 1
+      fi
+    fi
+  fi
+fi
 exec "$APP_DIR/.venv/bin/python" -m static_ai.terminal --data-dir "$APP_DIR/data" "$@"
 EOF
 chmod +x "$BIN_DIR/static-code"

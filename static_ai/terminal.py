@@ -46,6 +46,8 @@ COMMANDS = (
     "/media-cancel",
     "/mcp-reload",
     "/budget",
+    "/auto",
+    "/continuous",
 )
 
 
@@ -60,6 +62,10 @@ class Terminal:
         self.config = None
         self.budget = None
         self.pending_attachments = []
+        self.auto_approve = False
+        self.continuous = False
+        self.continuous_limit = 10.0
+        self.continuous_spent = 0.0
 
     async def request(self, method, path, **kwargs):
         response = await self.client.request(
@@ -109,6 +115,7 @@ class Terminal:
         self.pending_attachments = []
         self.active_run = run["id"]
         last, seen_approvals = 0, set()
+        objective_complete = False
         try:
             while True:
                 result = await self.request(
@@ -124,16 +131,25 @@ class Terminal:
                     elif kind == "artifact":
                         print(f"  Saved: {data.get('name', 'artifact')}")
                     elif kind == "answer":
-                        print("\nStatic:\n" + data.get("content", "") + "\n")
+                        content = data.get("content", "")
+                        if "STATIC_OBJECTIVE_COMPLETE" in content:
+                            objective_complete = True
+                        print("\nStatic:\n" + content + "\n")
                     elif kind == "error":
                         print("Error:", data.get("message", ""), file=sys.stderr)
                 for approval in result["approvals"]:
                     if approval["id"] in seen_approvals:
                         continue
                     seen_approvals.add(approval["id"])
-                    print(f"\nPermission: {approval['tool']}")
-                    print(json.dumps(approval["args"], ensure_ascii=False, indent=2)[:2000])
-                    answer = (await self.session.prompt_async("Allow once? [y/N] ")).strip().lower()
+                    if self.auto_approve:
+                        print(f"⚠ Auto-approved: {approval['tool']}")
+                        answer = "yes"
+                    else:
+                        print(f"\nPermission: {approval['tool']}")
+                        print(json.dumps(approval["args"], ensure_ascii=False, indent=2)[:2000])
+                        answer = (
+                            (await self.session.prompt_async("Allow once? [y/N] ")).strip().lower()
+                        )
                     await self.request(
                         "POST",
                         f"/api/approvals/{approval['id']}",
@@ -142,11 +158,18 @@ class Terminal:
                 if result["status"] in ("completed", "failed", "cancelled", "interrupted"):
                     if result["status"] != "completed":
                         print(f"Run {result['status']}: {result.get('error', '')}")
-                    return
+                    self.continuous_spent += float(result.get("spent") or 0)
+                    return (
+                        "objective_complete"
+                        if objective_complete and result["status"] == "completed"
+                        else result["status"]
+                    )
                 await asyncio.sleep(0.35)
         except (KeyboardInterrupt, asyncio.CancelledError):
             await self.request("POST", f"/api/runs/{self.active_run}/stop")
             print("\nRun stopped.")
+            self.continuous = False
+            return "cancelled"
         finally:
             self.active_run = None
 
@@ -177,6 +200,8 @@ class Terminal:
   /media-cancel ID     Cancel a media job
   /mcp-reload          Reload MCP connections
   /budget USD          Set the per-run budget
+  /auto on|off         Auto-approve tool actions (HIGH RISK)
+  /continuous on|off   Repeatedly work until stopped (API costs)
   /status              Show session and mode
   /tasks /skills /files  Inspect existing Static data
   /clear               Clear terminal display (does not erase messages)
@@ -257,6 +282,49 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
         elif command == "/settings":
             data = await self.request("GET", "/api/settings")
             print(json.dumps(data["settings"], indent=2, ensure_ascii=False))
+        elif command == "/auto":
+            if argument == "off":
+                self.auto_approve = False
+                print("Automatic approvals disabled.")
+            elif argument == "on":
+                print(
+                    "DANGER: This bypasses every tool approval, including commands, edits, and browser actions."
+                )
+                print(
+                    "Untrusted AI output could delete files, expose data, or perform unintended actions."
+                )
+                confirm = (await self.session.prompt_async("Type AUTO APPROVE to accept: ")).strip()
+                if confirm == "AUTO APPROVE":
+                    self.auto_approve = True
+                    print("⚠ Automatic approvals enabled for this session.")
+                else:
+                    print("Cancelled.")
+            else:
+                print("Usage: /auto on|off")
+        elif command == "/continuous":
+            if argument == "off":
+                self.continuous = False
+                print("Continuous mode disabled.")
+            elif argument == "on":
+                print("WARNING: Repeated API calls can be expensive. Stop with Ctrl+C.")
+                raw = (
+                    await self.session.prompt_async("Total estimated API spend limit USD [10]: ")
+                ).strip() or "10"
+                try:
+                    limit = float(raw)
+                    if not 0 < limit <= 1000:
+                        raise ValueError()
+                except ValueError:
+                    print("Enter a positive cap of at most $1000.")
+                else:
+                    confirm = (await self.session.prompt_async("Type CONTINUE to enable: ")).strip()
+                    if confirm == "CONTINUE":
+                        self.continuous_limit = limit
+                        self.continuous_spent = 0.0
+                        self.continuous = True
+                        print("Continuous mode enabled; cap is based on estimated tracked costs.")
+            else:
+                print("Usage: /continuous on|off")
         elif command == "/budget":
             try:
                 amount = float(argument)
@@ -343,7 +411,35 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                     if not await self.command(line):
                         return
                 else:
-                    await self.ask(line)
+                    if self.continuous:
+                        objective = line
+                        while self.continuous:
+                            remaining = self.continuous_limit - self.continuous_spent
+                            if remaining <= 0:
+                                print("Continuous mode stopped: estimated spending limit reached.")
+                                self.continuous = False
+                                break
+                            previous_budget = self.budget
+                            self.budget = min(
+                                previous_budget if previous_budget is not None else remaining,
+                                remaining,
+                            )
+                            try:
+                                status = await self.ask(objective)
+                            finally:
+                                self.budget = previous_budget
+                            if status != "completed":
+                                if status == "objective_complete":
+                                    print("Objective complete. Continuous mode stopped.")
+                                self.continuous = False
+                                break
+                            objective = (
+                                "Continue the prior objective, taking the next useful step. "
+                                "If fully complete, reply with STATIC_OBJECTIVE_COMPLETE."
+                            )
+                            await asyncio.sleep(1)
+                    else:
+                        await self.ask(line)
             except (EOFError, KeyboardInterrupt):
                 print("\nGoodbye.")
                 return
