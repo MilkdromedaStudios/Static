@@ -46,6 +46,8 @@ COMMANDS = (
     "/media-cancel",
     "/mcp-reload",
     "/budget",
+    "/auto",
+    "/continuous",
 )
 
 
@@ -60,6 +62,10 @@ class Terminal:
         self.config = None
         self.budget = None
         self.pending_attachments = []
+        self.auto_approve = False
+        self.continuous = False
+        self.continuous_limit = 10.0
+        self.continuous_spent = 0.0
 
     async def request(self, method, path, **kwargs):
         response = await self.client.request(
@@ -131,9 +137,13 @@ class Terminal:
                     if approval["id"] in seen_approvals:
                         continue
                     seen_approvals.add(approval["id"])
-                    print(f"\nPermission: {approval['tool']}")
-                    print(json.dumps(approval["args"], ensure_ascii=False, indent=2)[:2000])
-                    answer = (await self.session.prompt_async("Allow once? [y/N] ")).strip().lower()
+                    if self.auto_approve:
+                        print(f"⚠ Auto-approved: {approval['tool']}")
+                        answer = "yes"
+                    else:
+                        print(f"\nPermission: {approval['tool']}")
+                        print(json.dumps(approval["args"], ensure_ascii=False, indent=2)[:2000])
+                        answer = (await self.session.prompt_async("Allow once? [y/N] ")).strip().lower()
                     await self.request(
                         "POST",
                         f"/api/approvals/{approval['id']}",
@@ -142,11 +152,14 @@ class Terminal:
                 if result["status"] in ("completed", "failed", "cancelled", "interrupted"):
                     if result["status"] != "completed":
                         print(f"Run {result['status']}: {result.get('error', '')}")
-                    return
+                    self.continuous_spent += float(result.get("spent") or 0)
+                    return result["status"]
                 await asyncio.sleep(0.35)
         except (KeyboardInterrupt, asyncio.CancelledError):
             await self.request("POST", f"/api/runs/{self.active_run}/stop")
             print("\nRun stopped.")
+            self.continuous = False
+            return "cancelled"
         finally:
             self.active_run = None
 
