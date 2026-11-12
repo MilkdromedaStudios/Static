@@ -170,3 +170,25 @@ Additional terminal commands: `/rename TITLE`, `/download ID PATH`,
 as the web application.
 
 Files uploaded with `/upload PATH` are attached to the **next** chat message; they are not automatically sent until you submit that message.
+
+## Experimental autonomous terminal modes
+
+`/auto on` requires typing **AUTO APPROVE**. While enabled, Static automatically
+accepts tool approval requests, including potentially destructive shell commands,
+file edits, paid actions, and browser interactions. This bypasses approval prompts;
+use only in a disposable workspace and turn it off with `/auto off`.
+It resets when Static exits.
+
+`/continuous on` requires a positive estimated API-spending cap and typing
+**CONTINUE**. Once enabled, the next ordinary prompt starts successive runs,
+continuing the same objective until completion, a failed run, Ctrl+C, or the
+tracked cost cap. It is not an unattended daemon. Use `/continuous off`
+before starting another prompt to disable it. Pricing and token usage estimates
+may be incomplete for custom providers, so the cap is **not a guaranteed billing
+limit**. Monitor your provider's own usage and billing limits.
+
+The Linux launcher checks the repository's `main` branch on each launch,
+fast-forwards the local checkout when possible, and reinstalls dependencies.
+Updates are not applied to an already-running process. If offline, Static
+launches the installed version. Running remote updates implicitly trusts
+upstream code: review changes and use pinned releases for higher assurance.
