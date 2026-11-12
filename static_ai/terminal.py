@@ -147,7 +147,9 @@ class Terminal:
                     else:
                         print(f"\nPermission: {approval['tool']}")
                         print(json.dumps(approval["args"], ensure_ascii=False, indent=2)[:2000])
-                        answer = (await self.session.prompt_async("Allow once? [y/N] ")).strip().lower()
+                        answer = (
+                            (await self.session.prompt_async("Allow once? [y/N] ")).strip().lower()
+                        )
                     await self.request(
                         "POST",
                         f"/api/approvals/{approval['id']}",
@@ -157,7 +159,11 @@ class Terminal:
                     if result["status"] != "completed":
                         print(f"Run {result['status']}: {result.get('error', '')}")
                     self.continuous_spent += float(result.get("spent") or 0)
-                    return "objective_complete" if objective_complete and result["status"] == "completed" else result["status"]
+                    return (
+                        "objective_complete"
+                        if objective_complete and result["status"] == "completed"
+                        else result["status"]
+                    )
                 await asyncio.sleep(0.35)
         except (KeyboardInterrupt, asyncio.CancelledError):
             await self.request("POST", f"/api/runs/{self.active_run}/stop")
@@ -281,8 +287,12 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 self.auto_approve = False
                 print("Automatic approvals disabled.")
             elif argument == "on":
-                print("DANGER: This bypasses every tool approval, including commands, edits, and browser actions.")
-                print("Untrusted AI output could delete files, expose data, or perform unintended actions.")
+                print(
+                    "DANGER: This bypasses every tool approval, including commands, edits, and browser actions."
+                )
+                print(
+                    "Untrusted AI output could delete files, expose data, or perform unintended actions."
+                )
                 confirm = (await self.session.prompt_async("Type AUTO APPROVE to accept: ")).strip()
                 if confirm == "AUTO APPROVE":
                     self.auto_approve = True
@@ -297,7 +307,9 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 print("Continuous mode disabled.")
             elif argument == "on":
                 print("WARNING: Repeated API calls can be expensive. Stop with Ctrl+C.")
-                raw = (await self.session.prompt_async("Total estimated API spend limit USD [10]: ")).strip() or "10"
+                raw = (
+                    await self.session.prompt_async("Total estimated API spend limit USD [10]: ")
+                ).strip() or "10"
                 try:
                     limit = float(raw)
                     if not 0 < limit <= 1000:
@@ -408,7 +420,10 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                                 self.continuous = False
                                 break
                             previous_budget = self.budget
-                            self.budget = min(previous_budget if previous_budget is not None else remaining, remaining)
+                            self.budget = min(
+                                previous_budget if previous_budget is not None else remaining,
+                                remaining,
+                            )
                             try:
                                 status = await self.ask(objective)
                             finally:
@@ -418,8 +433,10 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                                     print("Objective complete. Continuous mode stopped.")
                                 self.continuous = False
                                 break
-                            objective = ("Continue the prior objective, taking the next useful step. "
-                                         "If fully complete, reply with STATIC_OBJECTIVE_COMPLETE.")
+                            objective = (
+                                "Continue the prior objective, taking the next useful step. "
+                                "If fully complete, reply with STATIC_OBJECTIVE_COMPLETE."
+                            )
                             await asyncio.sleep(1)
                     else:
                         await self.ask(line)
