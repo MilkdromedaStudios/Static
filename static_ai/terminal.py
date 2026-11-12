@@ -59,6 +59,7 @@ class Terminal:
         self.active_run = None
         self.config = None
         self.budget = None
+        self.pending_attachments = []
 
     async def request(self, method, path, **kwargs):
         response = await self.client.request(
@@ -104,6 +105,7 @@ class Terminal:
                 **({"budget_usd": self.budget} if self.budget is not None else {}),
             },
         )
+        self.pending_attachments = []
         self.active_run = run["id"]
         last, seen_approvals = 0, set()
         try:
@@ -248,7 +250,9 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                         f"/api/conversations/{self.conversation_id}/upload",
                         files={"file": (path.name, handle)},
                     )
-                print("Uploaded:", result.get("id", result))
+                if result.get("id"):
+                    self.pending_attachments.append(result["id"])
+                print("Uploaded and attached to next message:", result.get("id", result))
         elif command == "/settings":
             data = await self.request("GET", "/api/settings")
             print(json.dumps(data["settings"], indent=2, ensure_ascii=False))
