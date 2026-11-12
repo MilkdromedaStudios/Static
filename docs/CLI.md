@@ -192,3 +192,7 @@ fast-forwards the local checkout when possible, and reinstalls dependencies.
 Updates are not applied to an already-running process. If offline, Static
 launches the installed version. Running remote updates implicitly trusts
 upstream code: review changes and use pinned releases for higher assurance.
+
+## Saved conversations
+
+Static Code saves chat messages to its local SQLite database automatically. It also remembers the active conversation ID and restores that chat on the next launch. Use `/new` to start a separate saved conversation, `/sessions` to list chats, `/resume ID` to switch, `/history` to view messages, and `/save` to explicitly mark the current chat as the one to reopen next time. `/save` does not export or back up the database.
