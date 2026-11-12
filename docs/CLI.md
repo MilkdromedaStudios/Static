@@ -154,3 +154,19 @@ default; its `--setup-local-model` option explicitly opts into Ollama setup.
 The terminal uses the same backend, conversations, tools, tasks, approvals,
 MCP and media services as the web UI, but some web UI controls are not yet
 exposed as dedicated interactive terminal screens.
+
+## Custom API endpoints
+
+Choose provider **3** for OpenAI-compatible chat/completions servers, or **6**
+for Anthropic Messages-compatible endpoints. Enter the API base URL and exact
+model identifier. Local HTTP endpoints (localhost, 127.0.0.1) are supported;
+remote endpoints must use HTTPS. API keys are optional for custom servers.
+Static will never pull a model during this setup. Custom services must implement
+the selected protocol; arbitrary JSON APIs require an adapter.
+
+Additional terminal commands: `/rename TITLE`, `/download ID PATH`,
+`/task-done ID`, `/task-reopen ID`, `/media-refresh`, `/media-cancel ID`,
+`/mcp-reload`, and `/budget USD`. Commands use the same backend endpoints
+as the web application.
+
+Files uploaded with `/upload PATH` are attached to the **next** chat message; they are not automatically sent until you submit that message.

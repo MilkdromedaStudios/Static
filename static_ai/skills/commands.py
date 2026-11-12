@@ -1,4 +1,5 @@
 """Approval-gated local process execution, bounded for low-memory machines."""
+
 import asyncio
 import os
 
@@ -24,9 +25,26 @@ def _validated(args):
     if not cwd.is_dir():
         raise ValueError("Working directory does not exist")
     executable = args.command[0].lower()
-    if executable in ("sudo", "su", "doas", "pkexec", "powershell", "pwsh",
-                      "cmd", "cmd.exe", "bash", "sh", "zsh", "fish", "python",
-                      "python3", "py", "node", "perl", "ruby"):
+    if executable in (
+        "sudo",
+        "su",
+        "doas",
+        "pkexec",
+        "powershell",
+        "pwsh",
+        "cmd",
+        "cmd.exe",
+        "bash",
+        "sh",
+        "zsh",
+        "fish",
+        "python",
+        "python3",
+        "py",
+        "node",
+        "perl",
+        "ruby",
+    ):
         # Interpreter execution is permitted only after explicit user approval.
         pass
     return cwd
@@ -36,10 +54,14 @@ async def run_command(ctx, args):
     cwd = _validated(args)
     # Never invoke a shell; argv is executed directly and is fully visible in approval.
     process = await asyncio.create_subprocess_exec(
-        *args.command, cwd=str(cwd), stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+        *args.command,
+        cwd=str(cwd),
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
         env=os.environ.copy(),
     )
+
     async def collect():
         chunks = bytearray()
         truncated = False
@@ -61,21 +83,36 @@ async def run_command(ctx, args):
         process.kill()
         await process.wait()
         return {"exit_code": None, "timed_out": True, "output": "Command timed out"}
-    return {"exit_code": process.returncode, "timed_out": False,
-            "output": output.decode("utf-8", errors="replace"), "truncated": truncated}
+    return {
+        "exit_code": process.returncode,
+        "timed_out": False,
+        "output": output.decode("utf-8", errors="replace"),
+        "truncated": truncated,
+    }
 
 
 def terms(ctx, args):
     _validated(args)
-    return {"workspace": str(root()), "cwd": args.cwd,
-            "argv": args.command, "timeout_seconds": args.timeout_seconds}, 0.0
+    return {
+        "workspace": str(root()),
+        "cwd": args.cwd,
+        "argv": args.command,
+        "timeout_seconds": args.timeout_seconds,
+    }, 0.0
 
 
 def register(registry):
-    registry.add(Skill(
-        "code_run", "Run an explicitly approved local command in the project workspace. "
-        "Pass argv as a list (no shell interpretation), e.g. ['python', '-m', 'pytest']. "
-        "Timeout 120 seconds maximum. Output capped at 16 KiB. Never run destructive "
-        "or privileged commands without the user's informed approval.",
-        "Code", Command, run_command, approval=True, terms=terms,
-    ))
+    registry.add(
+        Skill(
+            "code_run",
+            "Run an explicitly approved local command in the project workspace. "
+            "Pass argv as a list (no shell interpretation), e.g. ['python', '-m', 'pytest']. "
+            "Timeout 120 seconds maximum. Output capped at 16 KiB. Never run destructive "
+            "or privileged commands without the user's informed approval.",
+            "Code",
+            Command,
+            run_command,
+            approval=True,
+            terms=terms,
+        )
+    )
