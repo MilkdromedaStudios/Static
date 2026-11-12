@@ -153,7 +153,9 @@ class Engine:
                 skill = self.registry.skills.get(name)
                 try:
                     if name in blocked_web_tools:
-                        raise ValueError("Web tool disabled for this run after repeated failures. Do not retry it.")
+                        raise ValueError(
+                            "Web tool disabled for this run after repeated failures. Do not retry it."
+                        )
                     if not skill or name in self.config.settings.disabled_skills:
                         raise ValueError("This skill is unavailable")
                     arguments = skill.args.model_validate_json(function["arguments"])
@@ -221,11 +223,17 @@ class Engine:
                         "error": "The tool could not complete. Check its connection and input; no successful result is available."
                     }
                     self.store.event(run_id, "tool_error", {"name": name, **result})
-                if name in ("web_read", "web_search") and isinstance(result, dict) and "error" in result:
+                if (
+                    name in ("web_read", "web_search")
+                    and isinstance(result, dict)
+                    and "error" in result
+                ):
                     web_failures[name] = web_failures.get(name, 0) + 1
                     if web_failures[name] >= 2:
                         blocked_web_tools.add(name)
-                        result["error"] += " This web tool is now disabled for this run after repeated failures. Use other available evidence or explain the limitation; do not retry it."
+                        result["error"] += (
+                            " This web tool is now disabled for this run after repeated failures. Use other available evidence or explain the limitation; do not retry it."
+                        )
                 state["messages"].append(
                     {
                         "role": "tool",
@@ -244,7 +252,11 @@ class Engine:
                 run_id,
                 state["messages"],
                 mode=run["mode"],
-                tools=[tool for tool in self.registry.schemas(self.config) if tool["function"]["name"] not in blocked_web_tools],
+                tools=[
+                    tool
+                    for tool in self.registry.schemas(self.config)
+                    if tool["function"]["name"] not in blocked_web_tools
+                ],
             )
             calls = reply.get("tool_calls", [])
             if not calls:
