@@ -1,8 +1,6 @@
 """Approval-gated local process execution, bounded for low-memory machines."""
 import asyncio
 import os
-import shlex
-from pathlib import Path
 
 from pydantic import Field
 
@@ -42,16 +40,29 @@ async def run_command(ctx, args):
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
         env=os.environ.copy(),
     )
+    async def collect():
+        chunks = bytearray()
+        truncated = False
+        while True:
+            chunk = await process.stdout.read(4096)
+            if not chunk:
+                break
+            remaining = MAX_OUTPUT - len(chunks)
+            if remaining > 0:
+                chunks.extend(chunk[:remaining])
+            if len(chunk) > remaining:
+                truncated = True
+        await process.wait()
+        return bytes(chunks), truncated
+
     try:
-        # Communicate drains output without deadlocking; bounded by timeout.
-        output, _ = await asyncio.wait_for(process.communicate(), timeout=args.timeout_seconds)
+        output, truncated = await asyncio.wait_for(collect(), timeout=args.timeout_seconds)
     except asyncio.TimeoutError:
         process.kill()
-        await process.communicate()
+        await process.wait()
         return {"exit_code": None, "timed_out": True, "output": "Command timed out"}
-    text = output[:MAX_OUTPUT].decode("utf-8", errors="replace")
     return {"exit_code": process.returncode, "timed_out": False,
-            "output": text, "truncated": len(output) > MAX_OUTPUT}
+            "output": output.decode("utf-8", errors="replace"), "truncated": truncated}
 
 
 def terms(ctx, args):
