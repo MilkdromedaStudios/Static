@@ -44,11 +44,13 @@ def parse_results(body, base_url):
         row = link.find_parent(class_="result") or link.find_parent("tr")
         snippet = row.select_one(".result__snippet, .result-snippet") if row else None
         seen.add(candidate)
-        results.append({
-            "title": title[:300],
-            "url": candidate,
-            "snippet": snippet.get_text(" ", strip=True)[:1000] if snippet else "",
-        })
+        results.append(
+            {
+                "title": title[:300],
+                "url": candidate,
+                "snippet": snippet.get_text(" ", strip=True)[:1000] if snippet else "",
+            }
+        )
         if len(results) >= 6:
             break
     return results
@@ -108,9 +110,7 @@ async def search(ctx, args):
             ][:6]
         ctx.store.settle(charge)
         if not results:
-            raise ValueError(
-                "Brave returned no results. Try a different query or search provider."
-            )
+            raise ValueError("Brave returned no results. Try a different query or search provider.")
     else:
         results = await duckduckgo_search(args.query)
     result = {
