@@ -4,6 +4,7 @@ set -Eeuo pipefail
 
 APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/static-code"
 BIN_DIR="$HOME/.local/bin"
+ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
 DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 WORK_DIR="$HOME/StaticWorkspace"
 REPO_URL="https://github.com/MilkdromedaStudios/Static.git"
@@ -14,7 +15,7 @@ command -v python3 >/dev/null || fail "Python 3.11+ is required."
 python3 -c 'import sys; sys.exit(sys.version_info < (3,11))' || fail "Python 3.11+ is required."
 python3 -c 'import venv, ensurepip' >/dev/null 2>&1 || fail "Python venv/ensurepip missing (on Debian/Raspberry Pi OS install python3-venv)."
 
-mkdir -p "$(dirname "$APP_DIR")" "$BIN_DIR" "$DESKTOP_DIR" "$WORK_DIR"
+mkdir -p "$(dirname "$APP_DIR")" "$BIN_DIR" "$DESKTOP_DIR" "$ICON_DIR" "$WORK_DIR"
 if [[ -d "$APP_DIR/.git" ]]; then
   echo "[Static] Updating existing installation..."
   git -C "$APP_DIR" pull --ff-only
@@ -66,16 +67,25 @@ fi
 EOF
 chmod +x "$BIN_DIR/static-code-desktop"
 
+cat > "$ICON_DIR/static-code.svg" <<'EOF'
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+<rect x="8" y="8" width="112" height="112" rx="24" fill="#172334"/>
+<path d="M32 40l25 24-25 24" fill="none" stroke="#62dfc0" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M67 88h29" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
+</svg>
+EOF
+
 cat > "$DESKTOP_DIR/static-code.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=Static Code
 Comment=Terminal AI coding assistant
 Exec=$BIN_DIR/static-code-desktop
-Icon=utilities-terminal
+Icon=static-code
 Terminal=false
 Categories=Development;Utility;
 StartupNotify=true
+Keywords=Static;AI;Coding;Terminal;
 EOF
 chmod 644 "$DESKTOP_DIR/static-code.desktop"
 if command -v update-desktop-database >/dev/null 2>&1; then
