@@ -48,6 +48,7 @@ COMMANDS = (
     "/budget",
     "/auto",
     "/continuous",
+    "/save",
 )
 
 
@@ -74,6 +75,14 @@ class Terminal:
         response.raise_for_status()
         return response.json()
 
+    def remember_session(self):
+        """Persist only the conversation ID, never API keys or message contents."""
+        if self.conversation_id:
+            target = self.data_dir / ".static-code-last-session"
+            temporary = target.with_suffix(".tmp")
+            temporary.write_text(self.conversation_id + "\n", encoding="utf-8")
+            temporary.replace(target)
+
     async def setup(self):
         try:
             from prompt_toolkit import PromptSession
@@ -97,9 +106,22 @@ class Terminal:
         if self.conversation_id:
             await self.request("GET", f"/api/conversations/{self.conversation_id}")
         else:
-            self.conversation_id = (
-                await self.request("POST", "/api/conversations", json={"title": "Static Code"})
-            )["id"]
+            previous = self.data_dir / ".static-code-last-session"
+            if previous.is_file():
+                saved_id = previous.read_text(encoding="utf-8").strip()
+                if saved_id:
+                    try:
+                        saved = await self.request("GET", f"/api/conversations/{saved_id}")
+                        self.conversation_id = saved_id
+                        print("Restored saved chat:", saved.get("title", saved_id))
+                    except httpx.HTTPStatusError as exc:
+                        if exc.response.status_code != 404:
+                            raise
+            if not self.conversation_id:
+                self.conversation_id = (
+                    await self.request("POST", "/api/conversations", json={"title": "Static Code"})
+                )["id"]
+        self.remember_session()
 
     async def ask(self, message):
         run = await self.request(
@@ -182,7 +204,7 @@ class Terminal:
         if command == "/help":
             print("""Commands:
   /new                 Create a new saved conversation
-  /sessions            List saved conversations
+  /sessions            List saved conversations\n  /save                Save current chat as the default for next launch
   /resume ID           Resume an existing conversation (ID or unique prefix)
   /history             Show messages in this conversation
   /mode economy|local  Switch model routing
@@ -213,6 +235,7 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
             self.conversation_id = (
                 await self.request("POST", "/api/conversations", json={"title": "Static Code"})
             )["id"]
+            self.remember_session()
             print("Created session:", self.conversation_id)
         elif command in ("/sessions", "/conversations"):
             rows = await self.request("GET", "/api/conversations")
@@ -225,7 +248,11 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 print("Provide an unambiguous session ID from /sessions.")
             else:
                 self.conversation_id = matches[0]["id"]
+                self.remember_session()
                 print("Resumed:", matches[0]["title"])
+        elif command == "/save":
+            self.remember_session()
+            print("Chat saved. It will reopen automatically next time:", self.conversation_id)
         elif command == "/history":
             data = await self.request("GET", f"/api/conversations/{self.conversation_id}")
             for item in data["messages"]:
