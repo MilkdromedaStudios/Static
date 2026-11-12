@@ -3,6 +3,7 @@
 Reads are restricted to STATIC_CODE_ROOT (defaults to current working directory).
 Writes require one-use approval from the user, including the target path and content.
 """
+
 import os
 from pathlib import Path
 
@@ -44,10 +45,15 @@ async def list_source(ctx, args):
     if not target.is_dir():
         raise ValueError("Not a directory")
     entries = sorted(target.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
-    return {"workspace": str(root()), "path": args.path, "entries": [
-        {"name": p.name, "type": "directory" if p.is_dir() else "file"}
-        for p in entries if p.name not in SKIP and not p.is_symlink()
-    ][:200]}
+    return {
+        "workspace": str(root()),
+        "path": args.path,
+        "entries": [
+            {"name": p.name, "type": "directory" if p.is_dir() else "file"}
+            for p in entries
+            if p.name not in SKIP and not p.is_symlink()
+        ][:200],
+    }
 
 
 async def read_source(ctx, args):
@@ -68,8 +74,10 @@ async def write_source(ctx, args):
     target.parent.mkdir(parents=True, exist_ok=True)
     # Atomic replacement; preserve original if writing fails.
     import tempfile
-    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8",
-            dir=target.parent, prefix=".static-", delete=False) as handle:
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=target.parent, prefix=".static-", delete=False
+    ) as handle:
         temporary = Path(handle.name)
         handle.write(args.content)
     try:
@@ -84,9 +92,32 @@ def write_terms(ctx, args):
 
 
 def register(registry):
-    registry.add(Skill("code_list", "List files in the configured local project workspace.", "Code",
-                       PathArgs, list_source))
-    registry.add(Skill("code_read", "Read a UTF-8 source file inside the configured project workspace.", "Code",
-                       PathArgs, read_source))
-    registry.add(Skill("code_write", "Create or replace a source file inside the configured project workspace. Requires explicit one-time approval for the exact file and content. Never modify secrets.", "Code",
-                       WriteArgs, write_source, approval=True, terms=write_terms))
+    registry.add(
+        Skill(
+            "code_list",
+            "List files in the configured local project workspace.",
+            "Code",
+            PathArgs,
+            list_source,
+        )
+    )
+    registry.add(
+        Skill(
+            "code_read",
+            "Read a UTF-8 source file inside the configured project workspace.",
+            "Code",
+            PathArgs,
+            read_source,
+        )
+    )
+    registry.add(
+        Skill(
+            "code_write",
+            "Create or replace a source file inside the configured project workspace. Requires explicit one-time approval for the exact file and content. Never modify secrets.",
+            "Code",
+            WriteArgs,
+            write_source,
+            approval=True,
+            terms=write_terms,
+        )
+    )

@@ -3,6 +3,7 @@
 The same application service powers the web UI and terminal; messages and runs
 are saved in Static's SQLite workspace.
 """
+
 import argparse
 import asyncio
 import json
@@ -15,8 +16,37 @@ import httpx
 from .app import create_app
 from .terminal_setup import configure, load_credentials
 
-COMMANDS = ("/help", "/exit", "/quit", "/new", "/resume", "/sessions",
-            "/history", "/tasks", "/skills", "/files", "/mode", "/status", "/clear", "/setup", "/models", "/mcp", "/media", "/task-new", "/task-start", "/upload", "/settings", "/rename", "/download", "/task-done", "/task-reopen", "/media-refresh", "/media-cancel", "/mcp-reload", "/budget")
+COMMANDS = (
+    "/help",
+    "/exit",
+    "/quit",
+    "/new",
+    "/resume",
+    "/sessions",
+    "/history",
+    "/tasks",
+    "/skills",
+    "/files",
+    "/mode",
+    "/status",
+    "/clear",
+    "/setup",
+    "/models",
+    "/mcp",
+    "/media",
+    "/task-new",
+    "/task-start",
+    "/upload",
+    "/settings",
+    "/rename",
+    "/download",
+    "/task-done",
+    "/task-reopen",
+    "/media-refresh",
+    "/media-cancel",
+    "/mcp-reload",
+    "/budget",
+)
 
 
 class Terminal:
@@ -31,8 +61,9 @@ class Terminal:
         self.budget = None
 
     async def request(self, method, path, **kwargs):
-        response = await self.client.request(method, path,
-            headers={"x-static-client": "web"}, **kwargs)
+        response = await self.client.request(
+            method, path, headers={"x-static-client": "web"}, **kwargs
+        )
         response.raise_for_status()
         return response.json()
 
@@ -51,25 +82,35 @@ class Terminal:
             completer=WordCompleter(COMMANDS, sentence=True),
             complete_while_typing=False,
             multiline=False,
-            bottom_toolbar=lambda: f" Static Code | {self.mode} | session {self.conversation_id[:8] if self.conversation_id else '-'} | Enter send | Esc+Enter newline | /help ",
+            bottom_toolbar=lambda: (
+                f" Static Code | {self.mode} | session {self.conversation_id[:8] if self.conversation_id else '-'} | Enter send | Esc+Enter newline | /help "
+            ),
             style=Style.from_dict({"bottom-toolbar": "bg:#303846 #ffffff"}),
         )
         if self.conversation_id:
             await self.request("GET", f"/api/conversations/{self.conversation_id}")
         else:
-            self.conversation_id = (await self.request("POST", "/api/conversations",
-                json={"title": "Static Code"}))["id"]
+            self.conversation_id = (
+                await self.request("POST", "/api/conversations", json={"title": "Static Code"})
+            )["id"]
 
     async def ask(self, message):
-        run = await self.request("POST",
+        run = await self.request(
+            "POST",
             f"/api/conversations/{self.conversation_id}/chat",
-            json={"message": message, "mode": self.mode, **({"budget_usd": self.budget} if self.budget is not None else {})})
+            json={
+                "message": message,
+                "mode": self.mode,
+                **({"budget_usd": self.budget} if self.budget is not None else {}),
+            },
+        )
         self.active_run = run["id"]
         last, seen_approvals = 0, set()
         try:
             while True:
-                result = await self.request("GET", f"/api/runs/{self.active_run}",
-                                            params={"after": last})
+                result = await self.request(
+                    "GET", f"/api/runs/{self.active_run}", params={"after": last}
+                )
                 for event in result["events"]:
                     last = max(last, event["id"])
                     kind, data = event["kind"], event["data"]
@@ -90,8 +131,11 @@ class Terminal:
                     print(f"\nPermission: {approval['tool']}")
                     print(json.dumps(approval["args"], ensure_ascii=False, indent=2)[:2000])
                     answer = (await self.session.prompt_async("Allow once? [y/N] ")).strip().lower()
-                    await self.request("POST", f"/api/approvals/{approval['id']}",
-                                       json={"allow": answer in ("y", "yes")})
+                    await self.request(
+                        "POST",
+                        f"/api/approvals/{approval['id']}",
+                        json={"allow": answer in ("y", "yes")},
+                    )
                 if result["status"] in ("completed", "failed", "cancelled", "interrupted"):
                     if result["status"] != "completed":
                         print(f"Run {result['status']}: {result.get('error', '')}")
@@ -137,8 +181,9 @@ class Terminal:
 Use Esc+Enter to insert a newline. Up/Down recalls previous prompts.
 Ctrl+C during a run stops it; approval prompts default to No.""")
         elif command == "/new":
-            self.conversation_id = (await self.request("POST", "/api/conversations",
-                json={"title": "Static Code"}))["id"]
+            self.conversation_id = (
+                await self.request("POST", "/api/conversations", json={"title": "Static Code"})
+            )["id"]
             print("Created session:", self.conversation_id)
         elif command in ("/sessions", "/conversations"):
             rows = await self.request("GET", "/api/conversations")
@@ -178,15 +223,19 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
             title = (await self.session.prompt_async("Task title: ")).strip()
             objective = (await self.session.prompt_async("Task objective: ")).strip()
             if title and objective:
-                item = await self.request("POST", "/api/tasks",
-                    json={"title": title, "objective": objective, "category": "work"})
+                item = await self.request(
+                    "POST",
+                    "/api/tasks",
+                    json={"title": title, "objective": objective, "category": "work"},
+                )
                 print("Task saved:", item["id"])
         elif command == "/task-start":
             if not argument:
                 print("Use /tasks to find the task ID.")
             else:
-                result = await self.request("POST", f"/api/tasks/{argument}/start",
-                    json={"mode": self.mode})
+                result = await self.request(
+                    "POST", f"/api/tasks/{argument}/start", json={"mode": self.mode}
+                )
                 print("Task started:", result["id"], "(track via /tasks)")
         elif command == "/upload":
             path = Path(argument).expanduser()
@@ -194,9 +243,11 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 print("Select an existing file under 5 MB.")
             else:
                 with path.open("rb") as handle:
-                    result = await self.request("POST",
+                    result = await self.request(
+                        "POST",
                         f"/api/conversations/{self.conversation_id}/upload",
-                        files={"file": (path.name, handle)})
+                        files={"file": (path.name, handle)},
+                    )
                 print("Uploaded:", result.get("id", result))
         elif command == "/settings":
             data = await self.request("GET", "/api/settings")
@@ -212,8 +263,11 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 print("Usage: /budget USD (0–100)")
         elif command == "/rename":
             if argument:
-                await self.request("PATCH", f"/api/conversations/{self.conversation_id}",
-                    json={"title": argument[:100]})
+                await self.request(
+                    "PATCH",
+                    f"/api/conversations/{self.conversation_id}",
+                    json={"title": argument[:100]},
+                )
                 print("Conversation renamed.")
             else:
                 print("Usage: /rename TITLE")
@@ -243,7 +297,11 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
             print(json.dumps(await self.request("POST", "/api/media/refresh"), indent=2))
         elif command == "/media-cancel":
             if argument:
-                print(json.dumps(await self.request("POST", f"/api/media/{argument}/cancel"), indent=2))
+                print(
+                    json.dumps(
+                        await self.request("POST", f"/api/media/{argument}/cancel"), indent=2
+                    )
+                )
             else:
                 print("Usage: /media-cancel JOB_ID")
         elif command == "/mcp-reload":
@@ -253,8 +311,13 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
         elif command == "/clear":
             print("\033[2J\033[H", end="")
         elif command in ("/tasks", "/skills", "/files", "/mcp", "/media"):
-            endpoint = {"/tasks": "/api/tasks", "/skills": "/api/skills",
-                        "/files": "/api/artifacts", "/mcp": "/api/mcp", "/media": "/api/media"}[command]
+            endpoint = {
+                "/tasks": "/api/tasks",
+                "/skills": "/api/skills",
+                "/files": "/api/artifacts",
+                "/mcp": "/api/mcp",
+                "/media": "/api/media",
+            }[command]
             print(json.dumps(await self.request("GET", endpoint), indent=2, ensure_ascii=False))
         else:
             print("Unknown command. Use /help.")
@@ -285,6 +348,7 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
 
 async def run(args):
     from .config import Config
+
     load_credentials(args.data_dir)
     config = Config(Path(args.data_dir))
     if not config.path.exists() and not os.getenv("STATIC_CHAT_MODEL"):
@@ -295,8 +359,9 @@ async def run(args):
             raise RuntimeError("No provider configured. Relaunch to finish setup.")
     app = create_app(args.data_dir)
     async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
-                                     base_url="http://localhost", timeout=30) as client:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://localhost", timeout=30
+        ) as client:
             terminal = Terminal(client, args.data_dir, args.mode, args.conversation)
             terminal.config = app.state.config
             await terminal.loop(args.prompt)
@@ -304,6 +369,7 @@ async def run(args):
 
 def main():
     from dotenv import load_dotenv
+
     load_dotenv(".env")
     parser = argparse.ArgumentParser(description="Static Code interactive terminal")
     parser.add_argument("--data-dir", default=os.getenv("STATIC_DATA_DIR", "data"))

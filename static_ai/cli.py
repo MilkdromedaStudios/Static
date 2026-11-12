@@ -12,8 +12,16 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--data-dir", default=env("DATA_DIR", "data"))
-    parser.add_argument("--setup-local-model", action="store_true", help="Explicitly offer Ollama setup and model downloads")
-    parser.add_argument("--skip-local-setup", action="store_true", help="Deprecated; local model setup is already off by default")
+    parser.add_argument(
+        "--setup-local-model",
+        action="store_true",
+        help="Explicitly offer Ollama setup and model downloads",
+    )
+    parser.add_argument(
+        "--skip-local-setup",
+        action="store_true",
+        help="Deprecated; local model setup is already off by default",
+    )
     args = parser.parse_args()
     if args.host not in ("127.0.0.1", "localhost", "::1") and len(env("AUTH_TOKEN")) < 24:
         parser.error(

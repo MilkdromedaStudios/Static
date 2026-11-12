@@ -3,6 +3,7 @@
 Model settings use the same Config/Settings objects as the web app.
 Credentials are stored in a private per-workspace dotenv file, never settings.json.
 """
+
 import getpass
 import os
 from pathlib import Path
@@ -92,6 +93,7 @@ def configure(data_dir, existing=None):
         print("Make sure Ollama is running and the model is already installed.")
     if choice == "4":
         import shutil
+
         if not shutil.which("claude"):
             print("Claude Code CLI not found. Install and sign in separately first.")
             return False
@@ -99,7 +101,10 @@ def configure(data_dir, existing=None):
     secret = None
     if choice in ("3", "6"):
         default = "n" if custom_local else "y"
-        if _ask("Does this API require a Bearer API key? (y/N)", default).lower() not in ("y", "yes"):
+        if _ask("Does this API require a Bearer API key? (y/N)", default).lower() not in (
+            "y",
+            "yes",
+        ):
             key_env = ""
     if key_env:
         secret = getpass.getpass("API key (hidden; Enter to reuse existing key): ").strip()
@@ -118,10 +123,16 @@ def configure(data_dir, existing=None):
         input_price = output_price = 0.0
     try:
         model = Model(
-            id="terminal", name=name, provider=provider, model=model_name,
-            base_url=base, key_env=key_env, local=local,
+            id="terminal",
+            name=name,
+            provider=provider,
+            model=model_name,
+            base_url=base,
+            key_env=key_env,
+            local=local,
             pricing_confirmed=not local,
-            input_per_million=input_price, output_per_million=output_price,
+            input_per_million=input_price,
+            output_per_million=output_price,
         )
         config = existing or Config(data_dir)
         settings = config.settings.model_copy(deep=True)
