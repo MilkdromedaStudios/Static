@@ -102,6 +102,7 @@ class Terminal:
             json={
                 "message": message,
                 "mode": self.mode,
+                "attachments": self.pending_attachments,
                 **({"budget_usd": self.budget} if self.budget is not None else {}),
             },
         )
