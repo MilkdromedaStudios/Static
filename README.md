@@ -57,6 +57,14 @@ Until you connect, the preview gives clearly labelled example replies and contac
 
 The **Publish Static preview** workflow builds on every main-branch push. It retains a downloadable `static-preview` artifact even before Pages is enabled. Once **Settings → Pages → Source → GitHub Actions** is selected, run or rerun that workflow to publish.
 
+## Terminal CLI and browser automation
+
+Static now includes an interactive terminal frontend (`static`) that shares the
+existing backend, conversations, tools, and approval flow. Optional Playwright
+support adds rendered-page navigation and approval-gated clicking, typing, and
+selection. See [CLI installation and usage](docs/CLI.md) for Windows, Linux,
+and macOS instructions and current limitations.
+
 ## Start the Python app
 
 ### Windows desktop download
