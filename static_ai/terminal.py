@@ -48,6 +48,7 @@ COMMANDS = (
     "/budget",
     "/auto",
     "/continuous",
+    "/both",
     "/save",
 )
 
@@ -225,6 +226,7 @@ class Terminal:
   /budget USD          Set the per-run budget
   /auto on|off         Auto-approve tool actions (HIGH RISK)
   /continuous on|off   Repeatedly work until stopped (API costs)
+  /both on|off         Enable/disable continuous + auto together (HIGH RISK)
   /status              Show session and mode
   /tasks /skills /files  Inspect existing Static data
   /clear               Clear terminal display (does not erase messages)
@@ -353,6 +355,43 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                         print("Continuous mode enabled; cap is based on estimated tracked costs.")
             else:
                 print("Usage: /continuous on|off")
+        elif command == "/both":
+            if argument == "off":
+                self.continuous = False
+                self.auto_approve = False
+                print("Continuous mode and automatic approvals disabled.")
+            elif argument == "on":
+                print(
+                    "DANGER: This enables unlimited-step continuous execution AND "
+                    "automatic approval of commands, file edits, and browser actions."
+                )
+                print(
+                    "The AI can make repeated changes without asking. API costs may "
+                    "accumulate; estimated limits are not guaranteed billing caps."
+                )
+                raw = (
+                    await self.session.prompt_async("Total estimated API spend limit USD [10]: ")
+                ).strip() or "10"
+                try:
+                    limit = float(raw)
+                    if not 0 < limit <= 1000:
+                        raise ValueError()
+                except ValueError:
+                    print("Cancelled. Enter a positive cap of at most $1000.")
+                else:
+                    confirm = (
+                        await self.session.prompt_async("Type ENABLE BOTH to accept: ")
+                    ).strip()
+                    if confirm == "ENABLE BOTH":
+                        self.continuous_limit = limit
+                        self.continuous_spent = 0.0
+                        self.auto_approve = True
+                        self.continuous = True
+                        print("Both modes enabled for this session. Ctrl+C stops active runs.")
+                    else:
+                        print("Cancelled; neither setting was changed.")
+            else:
+                print("Usage: /both on|off")
         elif command == "/budget":
             try:
                 amount = float(argument)
