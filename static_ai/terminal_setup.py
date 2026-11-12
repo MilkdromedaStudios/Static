@@ -12,9 +12,9 @@ from dotenv import load_dotenv, set_key
 from .config import Config, Model, Settings
 
 PROVIDERS = {
-    "1": ("openai", "OpenAI API", "https://api.openai.com/v1", "STATIC_API_KEY"),
-    "2": ("anthropic", "Anthropic API", "https://api.anthropic.com/v1", "STATIC_API_KEY"),
-    "3": ("openai", "OpenAI-compatible HTTPS API", "", "STATIC_API_KEY"),
+    "1": ("openai", "OpenAI API", "https://api.openai.com/v1", "STATIC_OPENAI_API_KEY"),
+    "2": ("anthropic", "Anthropic API", "https://api.anthropic.com/v1", "STATIC_ANTHROPIC_API_KEY"),
+    "3": ("openai", "OpenAI-compatible HTTPS API", "", "STATIC_COMPAT_API_KEY"),
     "4": ("claude_code", "Installed Claude Code CLI", "", ""),
     "5": ("openai", "Existing local Ollama (NO DOWNLOAD)", "http://localhost:11434/v1", ""),
 }
@@ -39,7 +39,10 @@ def _ask(prompt, default=None):
 def _price(label):
     while True:
         try:
-            return float(_ask(label + " (USD per 1M tokens)", "0"))
+            value = float(_ask(label + " (USD per 1M tokens)", "0"))
+            if not (0 <= value <= 10000):
+                raise ValueError("Price must be between 0 and 10000")
+            return value
         except ValueError:
             print("Enter a number, e.g. 1.50")
 
@@ -79,7 +82,11 @@ def configure(data_dir, existing=None):
         base = _ask("Existing Ollama base URL", base)
         print("Make sure Ollama is running and the model is already installed.")
     if choice == "4":
-        print("Static uses the Claude Code CLI already installed and signed in.")
+        import shutil
+        if not shutil.which("claude"):
+            print("Claude Code CLI not found. Install and sign in separately first.")
+            return False
+        print("Static uses your existing Claude Code CLI login.")
     secret = None
     if key_env:
         secret = getpass.getpass("API key (hidden; Enter to reuse existing key): ").strip()
