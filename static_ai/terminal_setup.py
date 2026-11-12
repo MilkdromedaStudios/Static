@@ -14,7 +14,7 @@ from .config import Config, Model, Settings
 PROVIDERS = {
     "1": ("openai", "OpenAI API", "https://api.openai.com/v1", "STATIC_OPENAI_API_KEY"),
     "2": ("anthropic", "Anthropic API", "https://api.anthropic.com/v1", "STATIC_ANTHROPIC_API_KEY"),
-    "3": ("openai", "OpenAI-compatible HTTPS API", "", "STATIC_COMPAT_API_KEY"),
+    "3": ("openai", "Custom OpenAI-compatible API", "", "STATIC_COMPAT_API_KEY"),
     "4": ("claude_code", "Installed Claude Code CLI", "", ""),
     "5": ("openai", "Existing local Ollama (NO DOWNLOAD)", "http://localhost:11434/v1", ""),
 }
@@ -60,7 +60,7 @@ def configure(data_dir, existing=None):
     print("No AI model will be downloaded or installed.")
     print("1) OpenAI API")
     print("2) Anthropic API")
-    print("3) OpenAI-compatible cloud API")
+    print("3) Custom API (cloud HTTPS or local HTTP)")
     print("4) Existing Claude Code CLI login")
     print("5) Existing local Ollama model (no download)")
     print("0) Cancel setup")
@@ -76,8 +76,16 @@ def configure(data_dir, existing=None):
     if not model_name:
         print("No model ID entered; configuration unchanged.")
         return False
+    custom_local = False
     if choice == "3":
-        base = _ask("HTTPS API base URL (including /v1)")
+        base = _ask("Custom API base URL (https://host/v1 or http://localhost:8000/v1)")
+        from urllib.parse import urlsplit
+        from .config import LOCAL_HOSTS
+        parsed = urlsplit(base)
+        custom_local = parsed.scheme == "http" and parsed.hostname in LOCAL_HOSTS
+        if parsed.scheme == "http" and not custom_local:
+            print("Remote endpoints require HTTPS; local HTTP is allowed.")
+            return False
     if choice == "5":
         base = _ask("Existing Ollama base URL", base)
         print("Make sure Ollama is running and the model is already installed.")
@@ -88,12 +96,15 @@ def configure(data_dir, existing=None):
             return False
         print("Static uses your existing Claude Code CLI login.")
     secret = None
+    if choice == "3" and custom_local:
+        if _ask("Does your local API need a key? (y/N)", "n").lower() not in ("y", "yes"):
+            key_env = ""
     if key_env:
         secret = getpass.getpass("API key (hidden; Enter to reuse existing key): ").strip()
         if not secret and not os.getenv(key_env):
             print("API key is required. No settings changed.")
             return False
-    local = choice == "5"
+    local = choice == "5" or custom_local
     if not local:
         print("Cloud models can incur charges. Confirm your provider's actual prices.")
         input_price = _price("Input price")
