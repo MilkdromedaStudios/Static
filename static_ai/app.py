@@ -30,6 +30,7 @@ class Chat(StrictModel):
     mode: str = Field(default="economy", pattern=r"^(economy|local)$")
     budget_usd: float | None = Field(default=None, ge=0, le=100)
     attachments: list[str] = Field(default_factory=list, max_length=5)
+    unlimited_steps: bool = False
 
 
 class Decision(StrictModel):
@@ -354,7 +355,7 @@ def create_app(data_dir=None, transport=None):
                         body.budget_usd
                         if body.budget_usd is not None
                         else config.settings.run_budget_usd,
-                        "{}",
+                        json.dumps({"unlimited_steps": True}) if body.unlimited_steps else "{}",
                         "",
                         now(),
                         now(),
