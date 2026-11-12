@@ -27,10 +27,6 @@ fi
 
 echo "[Static] Creating environment and installing dependencies..."
 # Installation is handled by the repo's Python bootstrap; no global pip changes.
-"$APP_DIR"/bootstrap.py --update -p "Say hello" >/dev/null 2>&1 && true || {
-  # Avoid invoking an AI model during installation. Use bootstrap's install() directly.
-  :
-}
 # Only install; do not launch a model, open a terminal, or require API credentials.
 (cd "$APP_DIR" && python3 -c 'import bootstrap; bootstrap.install(force=True)') || fail "Python dependency installation failed."
 
