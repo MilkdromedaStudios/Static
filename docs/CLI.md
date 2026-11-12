@@ -109,3 +109,26 @@ the project directory; otherwise the launcher uses the directory from
 which it was started. **This is not an OS sandbox**: approved commands
 have the user's normal filesystem/network permissions. Only approve
 commands you understand, and do not run Static as root.
+
+## Linux desktop app: one-command install
+
+From a Linux terminal (including Raspberry Pi OS with a desktop):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MilkdromedaStudios/Static/main/install-linux.sh | bash
+```
+
+The installer clones Static into `~/.local/share/static-code`, creates a
+private virtual environment, installs dependencies, adds the `static-code`
+command to `~/.local/bin`, and registers a **Static Code** application in
+your desktop's application menu. Clicking it opens a terminal running Static
+Code. Project files default to `~/StaticWorkspace`. No root permissions
+or global Python packages are required.
+
+Requirements: Git, curl, Python 3.11+, Python venv/ensurepip, internet on
+first install, and a supported graphical terminal emulator. If `curl`
+is missing, install it using your distro package manager. For safety, you
+can inspect the installer before running it.
+
+To update, rerun the same command. On machines without a graphical desktop,
+use `~/.local/bin/static-code` from an existing terminal.
