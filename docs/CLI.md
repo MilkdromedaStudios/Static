@@ -132,3 +132,25 @@ can inspect the installer before running it.
 
 To update, rerun the same command. On machines without a graphical desktop,
 use `~/.local/bin/static-code` from an existing terminal.
+
+## First-run provider setup (no unwanted downloads)
+
+When you launch the Linux **Static Code** desktop app for the first time,
+the terminal asks you to choose a provider before chatting. Options include
+OpenAI API, Anthropic API, OpenAI-compatible HTTPS providers, an already
+installed Claude Code CLI, or an already installed local Ollama model.
+There is **no automatic Ollama installation or model download**.
+
+The wizard requests the exact model ID, API endpoint when needed, a hidden
+API key, and confirmation of cloud pricing. Model settings are shared with
+the web UI through the same settings.json file. API keys are stored separately
+in a private `credentials.env` under Static's data directory and are never
+printed by `/models`.
+
+Use `/setup` to change providers later, and `/models` to test the
+connection. The existing web server also skips local model installation by
+default; its `--setup-local-model` option explicitly opts into Ollama setup.
+
+The terminal uses the same backend, conversations, tools, tasks, approvals,
+MCP and media services as the web UI, but some web UI controls are not yet
+exposed as dedicated interactive terminal screens.
