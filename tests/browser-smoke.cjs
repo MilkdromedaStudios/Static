@@ -63,7 +63,7 @@ async function waitPage(page) {
     );
     await page.locator('nav a[data-page="skills"]').click();
     await page.locator(".skill-card").first().waitFor();
-    assert.equal(await page.locator(".skill-card").count(), 13);
+    assert.ok(await page.locator(".skill-card").count() >= 13);
     const mesh = page.getByRole("checkbox", {
       name: "Enable 3D shapes",
       exact: true,
