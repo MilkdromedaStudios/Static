@@ -16,7 +16,7 @@ from .app import create_app
 from .terminal_setup import configure, load_credentials
 
 COMMANDS = ("/help", "/exit", "/quit", "/new", "/resume", "/sessions",
-            "/history", "/tasks", "/skills", "/files", "/mode", "/status", "/clear", "/setup", "/models", "/mcp", "/media", "/task-new", "/task-start", "/upload", "/settings")
+            "/history", "/tasks", "/skills", "/files", "/mode", "/status", "/clear", "/setup", "/models", "/mcp", "/media", "/task-new", "/task-start", "/upload", "/settings", "/rename", "/download", "/task-done", "/task-reopen", "/media-refresh", "/media-cancel", "/mcp-reload", "/budget")
 
 
 class Terminal:
@@ -28,6 +28,7 @@ class Terminal:
         self.session = None
         self.active_run = None
         self.config = None
+        self.budget = None
 
     async def request(self, method, path, **kwargs):
         response = await self.client.request(method, path,
@@ -62,7 +63,7 @@ class Terminal:
     async def ask(self, message):
         run = await self.request("POST",
             f"/api/conversations/{self.conversation_id}/chat",
-            json={"message": message, "mode": self.mode})
+            json={"message": message, "mode": self.mode, **({"budget_usd": self.budget} if self.budget is not None else {})})
         self.active_run = run["id"]
         last, seen_approvals = 0, set()
         try:
@@ -121,6 +122,14 @@ class Terminal:
   /task-start ID       Start a saved task
   /upload PATH         Upload a file to this conversation
   /settings            View current configuration (no secrets)
+  /rename TITLE        Rename current conversation
+  /download ID PATH    Save a generated artifact to a local file
+  /task-done ID        Mark task completed
+  /task-reopen ID      Reopen a task
+  /media-refresh       Refresh media jobs
+  /media-cancel ID     Cancel a media job
+  /mcp-reload          Reload MCP connections
+  /budget USD          Set the per-run budget
   /status              Show session and mode
   /tasks /skills /files  Inspect existing Static data
   /clear               Clear terminal display (does not erase messages)
@@ -192,6 +201,53 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
         elif command == "/settings":
             data = await self.request("GET", "/api/settings")
             print(json.dumps(data["settings"], indent=2, ensure_ascii=False))
+        elif command == "/budget":
+            try:
+                amount = float(argument)
+                if not 0 <= amount <= 100:
+                    raise ValueError()
+                self.budget = amount
+                print(f"Per-run budget: ${amount:.2f}")
+            except ValueError:
+                print("Usage: /budget USD (0–100)")
+        elif command == "/rename":
+            if argument:
+                await self.request("PATCH", f"/api/conversations/{self.conversation_id}",
+                    json={"title": argument[:100]})
+                print("Conversation renamed.")
+            else:
+                print("Usage: /rename TITLE")
+        elif command == "/download":
+            artifact_id, sep, destination = argument.partition(" ")
+            if not sep or not destination:
+                print("Usage: /download ARTIFACT_ID DESTINATION")
+            else:
+                target = Path(destination).expanduser().resolve()
+                if target.exists():
+                    print("Destination already exists; refusing to overwrite.")
+                else:
+                    response = await self.client.get(f"/api/artifacts/{artifact_id}/download")
+                    response.raise_for_status()
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with target.open("xb") as handle:
+                        handle.write(response.content)
+                    print("Saved:", target)
+        elif command in ("/task-done", "/task-reopen"):
+            if argument:
+                status = "done" if command == "/task-done" else "open"
+                await self.request("PATCH", f"/api/tasks/{argument}", json={"status": status})
+                print("Task:", status)
+            else:
+                print("Usage:", command, "TASK_ID")
+        elif command == "/media-refresh":
+            print(json.dumps(await self.request("POST", "/api/media/refresh"), indent=2))
+        elif command == "/media-cancel":
+            if argument:
+                print(json.dumps(await self.request("POST", f"/api/media/{argument}/cancel"), indent=2))
+            else:
+                print("Usage: /media-cancel JOB_ID")
+        elif command == "/mcp-reload":
+            print(json.dumps(await self.request("POST", "/api/mcp/reload"), indent=2))
         elif command == "/status":
             print(f"Session: {self.conversation_id}\nMode: {self.mode}\nData: {self.data_dir}")
         elif command == "/clear":
