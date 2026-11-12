@@ -291,6 +291,12 @@ def create_app(data_dir=None, transport=None):
         store.execute("INSERT INTO conversations VALUES(?,?,?)", tuple(item.values()))
         return item
 
+    @app.patch("/api/conversations/{conversation_id}")
+    async def rename_conversation(conversation_id: str, body: Title):
+        conversation(conversation_id)
+        store.execute("UPDATE conversations SET title=? WHERE id=?", (body.title.strip(), conversation_id))
+        return {"id": conversation_id, "title": body.title.strip()}
+
     @app.get("/api/conversations/{conversation_id}")
     async def get_conversation(conversation_id: str):
         conversation(conversation_id)
