@@ -16,7 +16,7 @@ from .app import create_app
 from .terminal_setup import configure, load_credentials
 
 COMMANDS = ("/help", "/exit", "/quit", "/new", "/resume", "/sessions",
-            "/history", "/tasks", "/skills", "/files", "/mode", "/status", "/clear", "/setup", "/models", "/mcp", "/media")
+            "/history", "/tasks", "/skills", "/files", "/mode", "/status", "/clear", "/setup", "/models", "/mcp", "/media", "/task-new", "/task-start", "/upload", "/settings")
 
 
 class Terminal:
@@ -117,6 +117,10 @@ class Terminal:
   /setup               Configure provider and API key
   /models              Show models and test connectivity
   /mcp /media          Inspect integrations and media jobs
+  /task-new            Create a saved task
+  /task-start ID       Start a saved task
+  /upload PATH         Upload a file to this conversation
+  /settings            View current configuration (no secrets)
   /status              Show session and mode
   /tasks /skills /files  Inspect existing Static data
   /clear               Clear terminal display (does not erase messages)
@@ -161,6 +165,33 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                     print("  Connection:", json.dumps(result, ensure_ascii=False)[:400])
                 except httpx.HTTPStatusError as exc:
                     print("  Test failed:", exc.response.status_code)
+        elif command == "/task-new":
+            title = (await self.session.prompt_async("Task title: ")).strip()
+            objective = (await self.session.prompt_async("Task objective: ")).strip()
+            if title and objective:
+                item = await self.request("POST", "/api/tasks",
+                    json={"title": title, "objective": objective, "category": "work"})
+                print("Task saved:", item["id"])
+        elif command == "/task-start":
+            if not argument:
+                print("Use /tasks to find the task ID.")
+            else:
+                result = await self.request("POST", f"/api/tasks/{argument}/start",
+                    json={"mode": self.mode})
+                print("Task started:", result["id"], "(track via /tasks)")
+        elif command == "/upload":
+            path = Path(argument).expanduser()
+            if not path.is_file() or path.stat().st_size > 5_000_000:
+                print("Select an existing file under 5 MB.")
+            else:
+                with path.open("rb") as handle:
+                    result = await self.request("POST",
+                        f"/api/conversations/{self.conversation_id}/upload",
+                        files={"file": (path.name, handle)})
+                print("Uploaded:", result.get("id", result))
+        elif command == "/settings":
+            data = await self.request("GET", "/api/settings")
+            print(json.dumps(data["settings"], indent=2, ensure_ascii=False))
         elif command == "/status":
             print(f"Session: {self.conversation_id}\nMode: {self.mode}\nData: {self.data_dir}")
         elif command == "/clear":
