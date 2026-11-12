@@ -55,3 +55,12 @@ def test_custom_https_without_key(tmp_path):
     assert model.base_url == "https://models.example.org/api/v1"
     assert model.key_env == ""
     assert model.local is False
+
+def test_custom_anthropic_endpoint_without_key(tmp_path):
+    answers = iter(["6", "custom-claude", "http://127.0.0.1:9000", "n"])
+    with patch("builtins.input", side_effect=lambda *_: next(answers)):
+        assert configure(tmp_path)
+    model = Config(tmp_path).settings.models[0]
+    assert model.provider == "anthropic"
+    assert model.local is True
+    assert model.key_env == ""
