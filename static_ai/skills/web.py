@@ -106,7 +106,6 @@ async def search(ctx, args):
                 for x in r.json().get("web", {}).get("results", [])
                 if x.get("url", "").startswith(("https://", "http://"))
             ][:6]
-            ]
         ctx.store.settle(charge)
         if not results:
             raise ValueError(
