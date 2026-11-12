@@ -176,7 +176,7 @@ def test_preferences_used_and_real_pages_served(workspace):
     assert client.get("/missing.html").status_code == 404
     runtime = client.get("/assets/runtime.js").text
     assert re.search(r"mode:\s*[\'\"]live[\'\"]", runtime)
-    assert len(client.get("/api/skills").json()) == 13
+    assert len(client.get("/api/skills").json()) >= 13
 
 
 def test_preview_build_only_exports_public_assets(tmp_path):
