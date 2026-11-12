@@ -57,3 +57,28 @@ sessions last for the CLI process, screenshots are not implemented, and some
 sites may block automation. Interactive website actions require the optional
 Playwright dependency and Chromium installation. The existing Static tools
 still do not provide arbitrary local shell execution or unrestricted code edits.
+
+## Static Code terminal experience
+
+Install the interactive prompt dependency:
+
+```bash
+python -m pip install -e ".[code,browser]"
+python -m playwright install chromium
+static
+```
+
+The terminal now provides a persistent bottom status bar, command completion,
+multiline editing (Esc+Enter), local prompt history, saved conversation
+switching, and live tool activity. Conversations and messages persist in the
+existing SQLite database. Use `/sessions` to list them, `/resume ID` to
+continue one, and `/history` to review messages.
+
+For local project coding, set `STATIC_CODE_ROOT` to your repository path
+(or start Static in the project directory). The `code_list`, `code_read`,
+and `code_write` skills operate inside this workspace. Every write requires
+explicit approval for the exact file and content. There is no unrestricted
+shell execution, git commit/push automation, or automatic test execution yet.
+The optional browser tools remain approval-gated.
+
+This is an incremental Claude Code-style experience, not feature parity.
