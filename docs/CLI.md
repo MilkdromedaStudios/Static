@@ -180,7 +180,7 @@ use only in a disposable workspace and turn it off with `/auto off`.
 It resets when Static exits.
 
 `/continuous on` requires a positive estimated API-spending cap and typing
-**CONTINUE**. Once enabled, the next ordinary prompt starts successive runs,
+**CONTINUE**. Once enabled, the next ordinary prompt bypasses the normal per-run AI step limit and starts successive runs,
 continuing the same objective until completion, a failed run, Ctrl+C, or the
 tracked cost cap. It is not an unattended daemon. Use `/continuous off`
 before starting another prompt to disable it. Pricing and token usage estimates
