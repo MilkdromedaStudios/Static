@@ -6,10 +6,11 @@ Credentials are stored in a private per-workspace dotenv file, never settings.js
 import getpass
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv, set_key
 
-from .config import Config, Model, Settings
+from .config import LOCAL_HOSTS, Config, Model, Settings
 
 PROVIDERS = {
     "1": ("openai", "OpenAI API", "https://api.openai.com/v1", "STATIC_OPENAI_API_KEY"),
@@ -79,8 +80,6 @@ def configure(data_dir, existing=None):
     custom_local = False
     if choice == "3":
         base = _ask("Custom API base URL (https://host/v1 or http://localhost:8000/v1)")
-        from urllib.parse import urlsplit
-        from .config import LOCAL_HOSTS
         parsed = urlsplit(base)
         custom_local = parsed.scheme == "http" and parsed.hostname in LOCAL_HOSTS
         if parsed.scheme == "http" and not custom_local:
