@@ -3,7 +3,7 @@ import os
 from unittest.mock import patch
 
 from static_ai.config import Config
-from static_ai.terminal_setup import configure, load_credentials
+from static_ai.terminal_setup import configure
 
 
 def test_first_run_cloud_model_no_download(tmp_path):
