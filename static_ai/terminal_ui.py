@@ -42,11 +42,7 @@ def dark_terminal():
     )
     if enabled:
         try:
-            output.write(
-                f"\x1b]10;{TEXT}\x07"
-                f"\x1b]11;{BACKGROUND}\x07"
-                f"\x1b]12;{CYAN}\x07"
-            )
+            output.write(f"\x1b]10;{TEXT}\x07\x1b]11;{BACKGROUND}\x07\x1b]12;{CYAN}\x07")
             output.flush()
         except (OSError, UnicodeError):
             enabled = False
@@ -147,8 +143,10 @@ def show_bubble(role, body):
         ai = role.lower() in ("static", "assistant")
         name = "◈  STATIC  /  RESPONSE" if ai else "▸  YOU  /  MESSAGE"
         color = CYAN if ai else VIOLET
-        content = Markdown(body or "*(No response text)*", code_theme="monokai") if ai else Text(
-            body or "", style=TEXT
+        content = (
+            Markdown(body or "*(No response text)*", code_theme="monokai")
+            if ai
+            else Text(body or "", style=TEXT)
         )
         console = _console()
         console.print(
