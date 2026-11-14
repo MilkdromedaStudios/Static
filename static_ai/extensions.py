@@ -72,7 +72,7 @@ class ExtensionManager:
                 ):
                     continue
                 if not isinstance(entrypoint, str) or not re.fullmatch(
-                    r"[A-Za-z_][A-Za-z0-9_]*\\.py", entrypoint
+                    r"[A-Za-z_][A-Za-z0-9_]*\.py", entrypoint
                 ):
                     continue
                 entry = (directory / entrypoint).resolve()
