@@ -3,6 +3,7 @@
 Project documents contain no API keys. Conversation messages live in Static's SQLite
 store; this journal holds only durable goals, summaries, and resume metadata.
 """
+
 from __future__ import annotations
 
 import json
