@@ -9,12 +9,15 @@ import asyncio
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 import httpx
 
 from .app import create_app
 from .terminal_setup import configure, load_credentials
+from .projects import MONEYFARM_GOAL, ProjectJournal
+from .terminal_ui import choose_chat, show_banner, show_bubble, show_event
 
 COMMANDS = (
     "/help",
@@ -50,6 +53,11 @@ COMMANDS = (
     "/continuous",
     "/both",
     "/save",
+    "/project",
+    "/projects",
+    "/goal",
+    "/pause",
+    "/moneyfarm",
 )
 
 
@@ -68,6 +76,11 @@ class Terminal:
         self.continuous = False
         self.continuous_limit = 10.0
         self.continuous_spent = 0.0
+        self.journal = ProjectJournal(self.data_dir)
+        self.project = None
+        self.last_answer = ""
+        self.last_tool_count = 0
+        self.repeated_answers = 0
 
     async def request(self, method, path, **kwargs):
         response = await self.client.request(
@@ -100,31 +113,70 @@ class Terminal:
             complete_while_typing=False,
             multiline=False,
             bottom_toolbar=lambda: (
-                f" Static Code | {self.mode} | session {self.conversation_id[:8] if self.conversation_id else '-'} | Enter send | Esc+Enter newline | /help "
+                f" ◈ STATIC  ·  {self.project['title'][:24] if self.project else self.mode}"
+                f"  ·  {self.conversation_id[:8] if self.conversation_id else '-'}"
+                "  ·  /projects  /moneyfarm  /help "
             ),
-            style=Style.from_dict({"bottom-toolbar": "bg:#303846 #ffffff"}),
+            style=Style.from_dict({
+                "bottom-toolbar": "bg:#111827 #b8d5f6",
+                "prompt": "bold #67d9ff",
+                "": "bg:#0c1220 #e7efff",
+            }),
         )
         if self.conversation_id:
             await self.request("GET", f"/api/conversations/{self.conversation_id}")
         else:
-            previous = self.data_dir / ".static-code-last-session"
-            if previous.is_file():
-                saved_id = previous.read_text(encoding="utf-8").strip()
-                if saved_id:
-                    try:
-                        saved = await self.request("GET", f"/api/conversations/{saved_id}")
-                        self.conversation_id = saved_id
-                        print("Restored saved chat:", saved.get("title", saved_id))
-                    except httpx.HTTPStatusError as exc:
-                        if exc.response.status_code != 404:
-                            raise
+            # A running auto-resume project takes priority over the manual chat picker.
+            project = self.journal.auto_resume()
+            if project:
+                try:
+                    await self.request("GET", f"/api/conversations/{project['conversation_id']}")
+                    self.project = project
+                    self.conversation_id = project["conversation_id"]
+                    show_event("saved", "Resuming project: " + project["title"])
+                except httpx.HTTPStatusError:
+                    self.journal.checkpoint(project, status="paused",
+                                            note="Conversation missing; cannot auto-resume")
             if not self.conversation_id:
-                self.conversation_id = (
-                    await self.request("POST", "/api/conversations", json={"title": "Static Code"})
-                )["id"]
+                rows = await self.request("GET", "/api/conversations")
+                selection = await choose_chat(rows) if sys.stdin.isatty() and rows else None
+                if selection and selection != "__new__":
+                    self.conversation_id = selection
+                elif selection == "__new__":
+                    self.conversation_id = (
+                        await self.request("POST", "/api/conversations",
+                                           json={"title": "Static Code"})
+                    )["id"]
+                else:
+                    previous = self.data_dir / ".static-code-last-session"
+                    if previous.is_file():
+                        saved_id = previous.read_text(encoding="utf-8").strip()
+                        if saved_id:
+                            try:
+                                saved = await self.request(
+                                    "GET", f"/api/conversations/{saved_id}"
+                                )
+                                self.conversation_id = saved_id
+                                show_event("saved", "Restored chat: " + str(saved.get("title", saved_id)))
+                            except httpx.HTTPStatusError as exc:
+                                if exc.response.status_code != 404:
+                                    raise
+                    if not self.conversation_id:
+                        self.conversation_id = (
+                            await self.request("POST", "/api/conversations",
+                                               json={"title": "Static Code"})
+                        )["id"]
+            if not self.project:
+                self.project = next(
+                    (p for p in self.journal.list()
+                     if p.get("conversation_id") == self.conversation_id
+                     and p.get("status") == "active"), None
+                )
         self.remember_session()
 
     async def ask(self, message):
+        if not self.project:
+            show_bubble("You", message)
         run = await self.request(
             "POST",
             f"/api/conversations/{self.conversation_id}/chat",
@@ -140,6 +192,10 @@ class Terminal:
         self.active_run = run["id"]
         last, seen_approvals = 0, set()
         objective_complete = False
+        self.last_answer = ""
+        self.last_tool_count = 0
+        seen_actions = []
+        heartbeat = time.monotonic()
         try:
             while True:
                 result = await self.request(
@@ -148,25 +204,44 @@ class Terminal:
                 for event in result["events"]:
                     last = max(last, event["id"])
                     kind, data = event["kind"], event["data"]
-                    if kind == "tool_start":
-                        print(f"  ⚙ {data.get('name', 'tool')}")
+                    if kind == "plan":
+                        steps = data.get("steps", [])
+                        show_event("plan", "Plan: " + " → ".join(
+                            x.get("title", "") for x in steps[:12]))
+                    elif kind == "tool_start":
+                        self.last_tool_count += 1
+                        seen_actions.append(str(data.get("name", "tool")))
+                        show_event("tool", data.get("name", "tool"))
+                    elif kind == "tool_done":
+                        show_event("saved", str(data.get("name", "tool")) + " finished")
                     elif kind == "tool_error":
-                        print(f"  Tool error: {data.get('error', '')}")
+                        seen_actions.append("Error: " + str(data.get("error", ""))[:200])
+                        show_event("error", data.get("error", ""))
                     elif kind == "artifact":
-                        print(f"  Saved: {data.get('name', 'artifact')}")
+                        seen_actions.append("Saved " + str(data.get("name", "artifact")))
+                        show_event("saved", data.get("name", "artifact"))
                     elif kind == "answer":
                         content = data.get("content", "")
+                        self.last_answer = content
                         if "STATIC_OBJECTIVE_COMPLETE" in content:
                             objective_complete = True
-                        print("\nStatic:\n" + content + "\n")
+                        show_bubble("Static", content)
                     elif kind == "error":
-                        print("Error:", data.get("message", ""), file=sys.stderr)
+                        seen_actions.append("Run error: " + str(data.get("message", ""))[:300])
+                        show_event("error", data.get("message", ""))
                 for approval in result["approvals"]:
                     if approval["id"] in seen_approvals:
                         continue
                     seen_approvals.add(approval["id"])
-                    if self.auto_approve:
-                        print(f"⚠ Auto-approved: {approval['tool']}")
+                    # Moneyfarm never silently approves external actions, purchases,
+                    # media costs, or untrusted MCP tool side effects.
+                    allowed_auto = self.auto_approve and (
+                        not self.project
+                        or self.project.get("kind") != "moneyfarm"
+                        or approval["tool"] == "code_write"
+                    )
+                    if allowed_auto:
+                        show_event("saved", "Auto-approved: " + str(approval["tool"]))
                         answer = "yes"
                     else:
                         print(f"\nPermission: {approval['tool']}")
@@ -182,20 +257,111 @@ class Terminal:
                 if result["status"] in ("completed", "failed", "cancelled", "interrupted"):
                     if result["status"] != "completed":
                         print(f"Run {result['status']}: {result.get('error', '')}")
-                    self.continuous_spent += float(result.get("spent") or 0)
+                    spent = float(result.get("spent") or 0)
+                    self.continuous_spent += spent
+                    if self.project:
+                        self.journal.checkpoint(
+                            self.project,
+                            note=("; ".join(seen_actions[-8:]) or "Run " + result["status"]),
+                            answer=self.last_answer,
+                            spent=spent,
+                        )
                     return (
                         "objective_complete"
                         if objective_complete and result["status"] == "completed"
                         else result["status"]
                     )
+                if self.project and time.monotonic() - heartbeat >= 120:
+                    self.journal.save(self.project)
+                    heartbeat = time.monotonic()
                 await asyncio.sleep(0.35)
         except (KeyboardInterrupt, asyncio.CancelledError):
             await self.request("POST", f"/api/runs/{self.active_run}/stop")
             print("\nRun stopped.")
             self.continuous = False
+            if self.project:
+                self.journal.checkpoint(
+                    self.project, status="paused", note="User interrupted the active run"
+                )
             return "cancelled"
         finally:
             self.active_run = None
+
+    async def run_project(self, *, first=False):
+        """Run the saved objective repeatedly, with bounded costs and restart checkpoints."""
+        if not self.project:
+            print("Select a project with /projects or create one with /project new.")
+            return
+        self.continuous = True
+        self.conversation_id = self.project["conversation_id"]
+        self.remember_session()
+        previous_answer = ""
+        while self.continuous and self.project.get("status") == "active":
+            remaining = float(self.project.get("spending_cap", 10)) - float(
+                self.project.get("spent", 0)
+            )
+            if remaining <= 0:
+                show_event("error", "Project spending cap reached; use /project budget USD.")
+                self.journal.checkpoint(self.project, status="paused",
+                                        note="Estimated API spending cap reached")
+                self.continuous = False
+                break
+            prior_budget = self.budget
+            self.budget = min(
+                prior_budget if prior_budget is not None else remaining,
+                remaining, 100.0,
+            )
+            try:
+                status = await self.ask(self.journal.resume_prompt(
+                    self.project, first=first))
+            finally:
+                self.budget = prior_budget
+            first = False
+            if status == "objective_complete":
+                self.journal.checkpoint(self.project, status="complete",
+                                        note="Agent reported goal complete; verify deliverables")
+                self.continuous = False
+                show_event("saved", "Goal marked complete. Check the evidence.")
+                break
+            if status == "cancelled":
+                self.continuous = False
+                break
+            if status != "completed":
+                self.project["failures"] = self.project.get("failures", 0) + 1
+                if self.project["failures"] >= 2:
+                    self.journal.checkpoint(
+                        self.project, status="paused",
+                        note="Paused after two failed or interrupted runs: " + status,
+                    )
+                    self.continuous = False
+                    show_event("error", "Repeated failure; project saved and paused.")
+                    break
+                show_event("error", "Run failed; retrying from checkpoint once.")
+                await asyncio.sleep(2)
+                continue
+            self.project["failures"] = 0
+            reply = " ".join(self.last_answer.split())
+            if reply and reply == previous_answer:
+                self.repeated_answers += 1
+            else:
+                self.repeated_answers = 0
+            previous_answer = reply
+            if self.repeated_answers >= 2 or (
+                not self.last_tool_count and any(
+                    phrase in reply.lower() for phrase in (
+                        "awaiting your approval", "need your approval",
+                        "waiting for your", "cannot proceed without",
+                    )
+                )
+            ):
+                self.journal.checkpoint(
+                    self.project, status="paused",
+                    note="No further autonomous progress; human input or review is needed",
+                )
+                self.continuous = False
+                show_event("error", "Paused rather than looping without progress.")
+                break
+            await asyncio.sleep(1)
 
     async def command(self, line):
         command, _, argument = line.partition(" ")
@@ -227,6 +393,16 @@ class Terminal:
   /auto on|off         Auto-approve tool actions (HIGH RISK)
   /continuous on|off   Repeatedly work until stopped (API costs)
   /both on|off         Enable/disable continuous + auto together (HIGH RISK)
+  /project new          Create and run a goal-based persistent project
+  /projects             Show and select saved projects (arrow keys)
+  /project ID           Resume the named saved project
+  /project status       Show goal, spending, checkpoints and progress
+  /project budget USD   Change project estimated API spending cap
+  /project pause|done   Pause the project / mark it complete
+  /goal TEXT            Change the project's original goal
+  /pause                Pause continuous work and disable auto-resume
+  /moneyfarm            Start/resume the $10 Minecraft-service project
+  /moneyfarm off        Pause the moneyfarm and disable auto-start
   /status              Show session and mode
   /tasks /skills /files  Inspect existing Static data
   /clear               Clear terminal display (does not erase messages)
@@ -237,6 +413,7 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
             self.conversation_id = (
                 await self.request("POST", "/api/conversations", json={"title": "Static Code"})
             )["id"]
+            self.project = None
             self.remember_session()
             print("Created session:", self.conversation_id)
         elif command in ("/sessions", "/conversations"):
@@ -250,6 +427,10 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 print("Provide an unambiguous session ID from /sessions.")
             else:
                 self.conversation_id = matches[0]["id"]
+                self.project = next(
+                    (p for p in self.journal.list()
+                     if p.get("conversation_id") == self.conversation_id), None
+                )
                 self.remember_session()
                 print("Resumed:", matches[0]["title"])
         elif command == "/save":
@@ -295,6 +476,147 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                     "POST", f"/api/tasks/{argument}/start", json={"mode": self.mode}
                 )
                 print("Task started:", result["id"], "(track via /tasks)")
+        elif command in ("/projects", "/project"):
+            if command == "/projects" or not argument or argument == "list":
+                rows = self.journal.list()
+                if not rows:
+                    print("No saved projects. Run /project new.")
+                else:
+                    for p in rows:
+                        print(
+                            f"{p['id']}  [{p['status']}] {p['title']} "
+                            f"(${float(p.get('spent', 0)):.2f}/"
+                            f"${float(p.get('spending_cap', 10)):.2f})"
+                        )
+                    if sys.stdin.isatty():
+                        selected = await choose_chat(rows)
+                        if selected and selected != "__new__":
+                            self.project = self.journal.load(selected)
+                            self.conversation_id = self.project["conversation_id"]
+                            self.remember_session()
+                            if self.project["status"] == "active":
+                                await self.run_project()
+            elif argument == "new":
+                title = (await self.session.prompt_async("Project title: ")).strip()
+                objective = (await self.session.prompt_async("Project goal: ")).strip()
+                if title and objective:
+                    conversation = await self.request(
+                        "POST", "/api/conversations", json={"title": title[:100]}
+                    )
+                    self.project = self.journal.create(
+                        title, objective, conversation["id"],
+                        spending_cap=self.continuous_limit,
+                    )
+                    self.conversation_id = conversation["id"]
+                    self.remember_session()
+                    await self.run_project(first=True)
+            elif argument == "status":
+                if self.project:
+                    print(json.dumps(self.project, ensure_ascii=False, indent=2)[:14000])
+                else:
+                    print("No active project. Run /projects.")
+            elif argument == "pause":
+                if self.project:
+                    self.journal.checkpoint(self.project, status="paused",
+                                            note="Paused by user")
+                    self.project["auto_resume"] = False
+                    self.journal.save(self.project)
+                    self.continuous = False
+                    print("Project paused and saved.")
+            elif argument == "done":
+                if self.project:
+                    self.journal.checkpoint(self.project, status="complete",
+                                            note="Marked complete by user")
+                    self.continuous = False
+            elif argument.startswith("budget "):
+                if not self.project:
+                    print("Select a project first.")
+                else:
+                    try:
+                        cap = float(argument.split(None, 1)[1])
+                        if not 0 < cap <= 1000:
+                            raise ValueError()
+                        self.project["spending_cap"] = cap
+                        self.journal.save(self.project)
+                        print(f"Project cap set to ${cap:.2f} (estimated).")
+                    except ValueError:
+                        print("Usage: /project budget USD (0–1000)")
+            elif argument == "resume":
+                if self.project:
+                    self.project["status"] = "active"
+                    self.journal.save(self.project)
+                    await self.run_project()
+            else:
+                rows = [p for p in self.journal.list() if p["id"].startswith(argument)]
+                if len(rows) != 1:
+                    print("Use /projects to get an unambiguous project ID.")
+                else:
+                    self.project = rows[0]
+                    self.conversation_id = self.project["conversation_id"]
+                    self.remember_session()
+                    if self.project["status"] != "complete":
+                        self.project["status"] = "active"
+                        self.journal.save(self.project)
+                        await self.run_project()
+                    else:
+                        print("This project is marked complete. /project status shows results.")
+        elif command == "/goal":
+            if not self.project or not argument:
+                print("Usage: /goal NEW OBJECTIVE (inside a project)")
+            else:
+                self.project["goal"] = argument[:12000]
+                self.project["status"] = "active"
+                self.journal.checkpoint(self.project,
+                                        note="Goal updated by user")
+                print("Original project goal updated and saved.")
+        elif command == "/pause":
+            self.continuous = False
+            self.auto_approve = False
+            if self.project:
+                self.project["auto_resume"] = False
+                self.journal.checkpoint(self.project, status="paused",
+                                        note="Paused by user; auto-resume disabled")
+            print("Continuous and auto-approval disabled. Project checkpoint saved.")
+        elif command == "/moneyfarm":
+            if argument == "off":
+                self.continuous = False
+                self.auto_approve = False
+                for p in self.journal.list():
+                    if p.get("kind") == "moneyfarm" and p.get("status") == "active":
+                        p["auto_resume"] = False
+                        self.journal.checkpoint(p, status="paused",
+                                                note="Moneyfarm stopped by user")
+                print("Moneyfarm paused. It will not auto-start.")
+            elif not argument:
+                existing = next(
+                    (p for p in self.journal.list()
+                     if p.get("kind") == "moneyfarm"
+                     and p.get("status") != "complete"), None
+                )
+                if existing:
+                    self.project = existing
+                    self.project["status"] = "active"
+                    self.project["auto_resume"] = True
+                else:
+                    conversation = await self.request(
+                        "POST", "/api/conversations",
+                        json={"title": "Moneyfarm · First $10"}
+                    )
+                    self.project = self.journal.create(
+                        "Moneyfarm · First $10", MONEYFARM_GOAL, conversation["id"],
+                        kind="moneyfarm", auto_resume=True,
+                        spending_cap=self.continuous_limit,
+                    )
+                self.conversation_id = self.project["conversation_id"]
+                self.remember_session()
+                self.journal.save(self.project)
+                self.auto_approve = True
+                self.continuous = True
+                show_event("saved", "Moneyfarm activated. Local code writes may be auto-approved; "
+                           "external actions and paid tools require review.")
+                await self.run_project(first=self.project.get("turns", 0) == 0)
+            else:
+                print("Usage: /moneyfarm [off]")
         elif command == "/upload":
             path = Path(argument).expanduser()
             if not path.is_file() or path.stat().st_size > 5_000_000:
@@ -448,6 +770,11 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
             print(json.dumps(await self.request("POST", "/api/mcp/reload"), indent=2))
         elif command == "/status":
             print(f"Session: {self.conversation_id}\nMode: {self.mode}\nData: {self.data_dir}")
+            print(f"Continuous: {self.continuous}  Auto: {self.auto_approve}")
+            if self.project:
+                print(f"Project: {self.project['title']} [{self.project['status']}]")
+                print(f"Goal: {self.project['goal'][:700]}")
+                print(f"Estimated spent: ${float(self.project.get('spent', 0)):.2f}")
         elif command == "/clear":
             print("\033[2J\033[H", end="")
         elif command in ("/tasks", "/skills", "/files", "/mcp", "/media"):
@@ -465,10 +792,17 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
 
     async def loop(self, prompt=None):
         await self.setup()
-        print("Static Code  •  /help commands  •  /sessions saved chats")
+        show_banner()
         if prompt is not None:
             await self.ask(prompt)
             return
+        if self.project and self.project.get("auto_resume") and (
+            self.project.get("status") == "active"
+        ):
+            if self.project.get("kind") == "moneyfarm":
+                self.auto_approve = True
+            show_event("saved", "Auto-resuming goal: " + self.project["title"])
+            await self.run_project()
         while True:
             try:
                 line = (await self.session.prompt_async("❯ ")).strip()
@@ -477,43 +811,27 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 if line.startswith("/"):
                     if not await self.command(line):
                         return
-                else:
-                    if self.continuous:
-                        objective = line
-                        while self.continuous:
-                            remaining = self.continuous_limit - self.continuous_spent
-                            if remaining <= 0:
-                                print("Continuous mode stopped: estimated spending limit reached.")
-                                self.continuous = False
-                                break
-                            previous_budget = self.budget
-                            self.budget = min(
-                                previous_budget if previous_budget is not None else remaining,
-                                remaining,
-                            )
-                            try:
-                                status = await self.ask(objective)
-                            finally:
-                                self.budget = previous_budget
-                            if status != "completed":
-                                if status == "objective_complete":
-                                    print("Objective complete. Continuous mode stopped.")
-                                else:
-                                    print("Continuous mode stopped:", status)
-                                self.continuous = False
-                                break
-                            objective = (
-                                "Continue the prior objective, taking the next useful step. "
-                                "If fully complete, reply with STATIC_OBJECTIVE_COMPLETE."
-                            )
-                            await asyncio.sleep(1)
+                elif self.continuous:
+                    if not self.project:
+                        self.project = self.journal.create(
+                            line[:70], line, self.conversation_id,
+                            spending_cap=self.continuous_limit,
+                        )
+                        await self.run_project(first=True)
                     else:
+                        self.journal.checkpoint(
+                            self.project, note="User direction: " + line[:700]
+                        )
                         await self.ask(line)
+                        if self.project["status"] == "active":
+                            await self.run_project()
+                else:
+                    await self.ask(line)
             except (EOFError, KeyboardInterrupt):
-                print("\nGoodbye.")
+                print("\nGoodbye. Saved sessions remain on disk.")
                 return
             except httpx.HTTPStatusError as exc:
-                print("Request failed:", exc.response.text[:1000], file=sys.stderr)
+                show_event("error", "Request failed: " + exc.response.text[:1000])
 
 
 async def run(args):
