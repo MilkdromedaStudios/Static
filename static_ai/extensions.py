@@ -78,24 +78,27 @@ class ExtensionManager:
                 entry = (directory / entrypoint).resolve()
                 if not entry.is_relative_to(directory.resolve()) or not entry.is_file():
                     continue
-                results.append({
-                    "id": extension_id,
-                    "name": str(metadata.get("name", extension_id))[:100],
-                    "description": str(metadata.get("description", ""))[:600],
-                    "version": str(metadata.get("version", "0"))[:30],
-                    "path": str(directory),
-                    "entrypoint": str(entry),
-                    "installed": extension_id in self._enabled,
-                    "active": extension_id in self._loaded,
-                    "note": "Local Python code. Only enable extensions you trust.",
-                })
+                results.append(
+                    {
+                        "id": extension_id,
+                        "name": str(metadata.get("name", extension_id))[:100],
+                        "description": str(metadata.get("description", ""))[:600],
+                        "version": str(metadata.get("version", "0"))[:30],
+                        "path": str(directory),
+                        "entrypoint": str(entry),
+                        "installed": extension_id in self._enabled,
+                        "active": extension_id in self._loaded,
+                        "note": "Local Python code. Only enable extensions you trust.",
+                    }
+                )
             except (ValueError, OSError, TypeError, KeyError):
                 continue
         return results
 
     def _resolve(self, extension_id):
         matches = [
-            item for item in self.discover()
+            item
+            for item in self.discover()
             if extension_id.lower() in (item["id"].lower(), item["name"].lower())
         ]
         if len(matches) != 1:
@@ -129,9 +132,11 @@ class ExtensionManager:
             self._load(item["id"])
         self._enabled.add(item["id"])
         self._save()
-        return {"id": item["id"], "enabled": True, "tools": [
-            skill.name for skill in self._loaded[item["id"]]
-        ]}
+        return {
+            "id": item["id"],
+            "enabled": True,
+            "tools": [skill.name for skill in self._loaded[item["id"]]],
+        }
 
     def disable(self, extension_id):
         item = self._resolve(extension_id)

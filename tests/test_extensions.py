@@ -57,7 +57,8 @@ def test_gig_draft_and_export_never_publish(workspace):
     response = wait_run(client, run)
     assert response["status"] == "completed"
     event = next(
-        e for e in response["events"]
+        e
+        for e in response["events"]
         if e["kind"] == "tool_done" and e["data"]["name"] == "fiverr_sell_draft_gig"
     )
     assert event["data"]["result"]["published"] is False
@@ -96,7 +97,8 @@ def test_order_import_is_not_verified_revenue(workspace):
     ).json()["id"]
     response = wait_run(client, continued)
     orders = next(
-        e["data"]["result"] for e in response["events"]
+        e["data"]["result"]
+        for e in response["events"]
         if e["kind"] == "tool_done" and e["data"]["name"] == "fiverr_sell_list_orders"
     )
     assert orders["verified_earnings_usd"] is None

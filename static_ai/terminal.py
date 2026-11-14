@@ -119,11 +119,13 @@ class Terminal:
                 f"  ·  {self.conversation_id[:8] if self.conversation_id else '-'}"
                 "  ·  /projects  /moneyfarm  /help "
             ),
-            style=Style.from_dict({
-                "bottom-toolbar": "bg:#111827 #b8d5f6",
-                "prompt": "bold #67d9ff",
-                "": "bg:#0c1220 #e7efff",
-            }),
+            style=Style.from_dict(
+                {
+                    "bottom-toolbar": "bg:#111827 #b8d5f6",
+                    "prompt": "bold #67d9ff",
+                    "": "bg:#0c1220 #e7efff",
+                }
+            ),
         )
         if self.conversation_id:
             await self.request("GET", f"/api/conversations/{self.conversation_id}")
@@ -137,8 +139,9 @@ class Terminal:
                     self.conversation_id = project["conversation_id"]
                     show_event("saved", "Resuming project: " + project["title"])
                 except httpx.HTTPStatusError:
-                    self.journal.checkpoint(project, status="paused",
-                                            note="Conversation missing; cannot auto-resume")
+                    self.journal.checkpoint(
+                        project, status="paused", note="Conversation missing; cannot auto-resume"
+                    )
             if not self.conversation_id:
                 rows = await self.request("GET", "/api/conversations")
                 selection = await choose_chat(rows) if sys.stdin.isatty() and rows else None
@@ -146,8 +149,9 @@ class Terminal:
                     self.conversation_id = selection
                 elif selection == "__new__":
                     self.conversation_id = (
-                        await self.request("POST", "/api/conversations",
-                                           json={"title": "Static Code"})
+                        await self.request(
+                            "POST", "/api/conversations", json={"title": "Static Code"}
+                        )
                     )["id"]
                 else:
                     previous = self.data_dir / ".static-code-last-session"
@@ -155,24 +159,29 @@ class Terminal:
                         saved_id = previous.read_text(encoding="utf-8").strip()
                         if saved_id:
                             try:
-                                saved = await self.request(
-                                    "GET", f"/api/conversations/{saved_id}"
-                                )
+                                saved = await self.request("GET", f"/api/conversations/{saved_id}")
                                 self.conversation_id = saved_id
-                                show_event("saved", "Restored chat: " + str(saved.get("title", saved_id)))
+                                show_event(
+                                    "saved", "Restored chat: " + str(saved.get("title", saved_id))
+                                )
                             except httpx.HTTPStatusError as exc:
                                 if exc.response.status_code != 404:
                                     raise
                     if not self.conversation_id:
                         self.conversation_id = (
-                            await self.request("POST", "/api/conversations",
-                                               json={"title": "Static Code"})
+                            await self.request(
+                                "POST", "/api/conversations", json={"title": "Static Code"}
+                            )
                         )["id"]
             if not self.project:
                 self.project = next(
-                    (p for p in self.journal.list()
-                     if p.get("conversation_id") == self.conversation_id
-                     and p.get("status") == "active"), None
+                    (
+                        p
+                        for p in self.journal.list()
+                        if p.get("conversation_id") == self.conversation_id
+                        and p.get("status") == "active"
+                    ),
+                    None,
                 )
         self.remember_session()
 
@@ -208,8 +217,9 @@ class Terminal:
                     kind, data = event["kind"], event["data"]
                     if kind == "plan":
                         steps = data.get("steps", [])
-                        show_event("plan", "Plan: " + " → ".join(
-                            x.get("title", "") for x in steps[:12]))
+                        show_event(
+                            "plan", "Plan: " + " → ".join(x.get("title", "") for x in steps[:12])
+                        )
                     elif kind == "tool_start":
                         self.last_tool_count += 1
                         seen_actions.append(str(data.get("name", "tool")))
@@ -304,24 +314,28 @@ class Terminal:
             )
             if remaining <= 0:
                 show_event("error", "Project spending cap reached; use /project budget USD.")
-                self.journal.checkpoint(self.project, status="paused",
-                                        note="Estimated API spending cap reached")
+                self.journal.checkpoint(
+                    self.project, status="paused", note="Estimated API spending cap reached"
+                )
                 self.continuous = False
                 break
             prior_budget = self.budget
             self.budget = min(
                 prior_budget if prior_budget is not None else remaining,
-                remaining, 100.0,
+                remaining,
+                100.0,
             )
             try:
-                status = await self.ask(self.journal.resume_prompt(
-                    self.project, first=first))
+                status = await self.ask(self.journal.resume_prompt(self.project, first=first))
             finally:
                 self.budget = prior_budget
             first = False
             if status == "objective_complete":
-                self.journal.checkpoint(self.project, status="complete",
-                                        note="Agent reported goal complete; verify deliverables")
+                self.journal.checkpoint(
+                    self.project,
+                    status="complete",
+                    note="Agent reported goal complete; verify deliverables",
+                )
                 self.continuous = False
                 show_event("saved", "Goal marked complete. Check the evidence.")
                 break
@@ -332,7 +346,8 @@ class Terminal:
                 self.project["failures"] = self.project.get("failures", 0) + 1
                 if self.project["failures"] >= 2:
                     self.journal.checkpoint(
-                        self.project, status="paused",
+                        self.project,
+                        status="paused",
                         note="Paused after two failed or interrupted runs: " + status,
                     )
                     self.continuous = False
@@ -349,15 +364,20 @@ class Terminal:
                 self.repeated_answers = 0
             previous_answer = reply
             if self.repeated_answers >= 2 or (
-                not self.last_tool_count and any(
-                    phrase in reply.lower() for phrase in (
-                        "awaiting your approval", "need your approval",
-                        "waiting for your", "cannot proceed without",
+                not self.last_tool_count
+                and any(
+                    phrase in reply.lower()
+                    for phrase in (
+                        "awaiting your approval",
+                        "need your approval",
+                        "waiting for your",
+                        "cannot proceed without",
                     )
                 )
             ):
                 self.journal.checkpoint(
-                    self.project, status="paused",
+                    self.project,
+                    status="paused",
                     note="No further autonomous progress; human input or review is needed",
                 )
                 self.continuous = False
@@ -434,8 +454,12 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
             else:
                 self.conversation_id = matches[0]["id"]
                 self.project = next(
-                    (p for p in self.journal.list()
-                     if p.get("conversation_id") == self.conversation_id), None
+                    (
+                        p
+                        for p in self.journal.list()
+                        if p.get("conversation_id") == self.conversation_id
+                    ),
+                    None,
                 )
                 self.remember_session()
                 print("Resumed:", matches[0]["title"])
@@ -510,7 +534,9 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                         "POST", "/api/conversations", json={"title": title[:100]}
                     )
                     self.project = self.journal.create(
-                        title, objective, conversation["id"],
+                        title,
+                        objective,
+                        conversation["id"],
                         spending_cap=self.continuous_limit,
                     )
                     self.conversation_id = conversation["id"]
@@ -523,16 +549,16 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                     print("No active project. Run /projects.")
             elif argument == "pause":
                 if self.project:
-                    self.journal.checkpoint(self.project, status="paused",
-                                            note="Paused by user")
+                    self.journal.checkpoint(self.project, status="paused", note="Paused by user")
                     self.project["auto_resume"] = False
                     self.journal.save(self.project)
                     self.continuous = False
                     print("Project paused and saved.")
             elif argument == "done":
                 if self.project:
-                    self.journal.checkpoint(self.project, status="complete",
-                                            note="Marked complete by user")
+                    self.journal.checkpoint(
+                        self.project, status="complete", note="Marked complete by user"
+                    )
                     self.continuous = False
             elif argument.startswith("budget "):
                 if not self.project:
@@ -572,16 +598,16 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
             else:
                 self.project["goal"] = argument[:12000]
                 self.project["status"] = "active"
-                self.journal.checkpoint(self.project,
-                                        note="Goal updated by user")
+                self.journal.checkpoint(self.project, note="Goal updated by user")
                 print("Original project goal updated and saved.")
         elif command == "/pause":
             self.continuous = False
             self.auto_approve = False
             if self.project:
                 self.project["auto_resume"] = False
-                self.journal.checkpoint(self.project, status="paused",
-                                        note="Paused by user; auto-resume disabled")
+                self.journal.checkpoint(
+                    self.project, status="paused", note="Paused by user; auto-resume disabled"
+                )
             print("Continuous and auto-approval disabled. Project checkpoint saved.")
         elif command == "/extension":
             operation, _, target = argument.partition(" ")
@@ -592,24 +618,30 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                     print("No extensions found in the repository /extensions folder.")
                 for item in items:
                     print(
-                        f"{item['id']} · {item['name']} [{ 'enabled' if item['active'] else 'available' }] "
+                        f"{item['id']} · {item['name']} [{'enabled' if item['active'] else 'available'}] "
                         f"v{item['version']}\n  {item['description']}"
                     )
-                print("Extensions are local Python code, not sandboxed. Only install trusted sources.")
+                print(
+                    "Extensions are local Python code, not sandboxed. Only install trusted sources."
+                )
             elif operation == "info" and target:
                 items = await self.request("GET", "/api/extensions")
-                matches = [x for x in items if target.casefold() in (
-                    x["name"].casefold(), x["id"].casefold()
-                )]
+                matches = [
+                    x
+                    for x in items
+                    if target.casefold() in (x["name"].casefold(), x["id"].casefold())
+                ]
                 if len(matches) != 1:
                     print("Unknown extension. Run /extension list.")
                 else:
                     print(json.dumps(matches[0], indent=2, ensure_ascii=False))
             elif operation in ("install", "enable") and target:
                 items = await self.request("GET", "/api/extensions")
-                matches = [x for x in items if target.casefold() in (
-                    x["id"].casefold(), x["name"].casefold()
-                )]
+                matches = [
+                    x
+                    for x in items
+                    if target.casefold() in (x["id"].casefold(), x["name"].casefold())
+                ]
                 if len(matches) != 1:
                     print("Unknown extension. Run /extension list for its ID.")
                 else:
@@ -619,17 +651,14 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                         "your user account permissions. It is not sandboxed."
                     )
                     confirmation = (
-                        await self.session.prompt_async(
-                            f"Type INSTALL {item['id']} to enable: "
-                        )
+                        await self.session.prompt_async(f"Type INSTALL {item['id']} to enable: ")
                     ).strip()
                     if confirmation == "INSTALL " + item["id"]:
                         result = await self.request(
                             "POST", "/api/extensions/" + quote(item["id"], safe="") + "/enable"
                         )
                         print(
-                            f"Enabled {result['id']}; tools: "
-                            + ", ".join(result.get("tools", []))
+                            f"Enabled {result['id']}; tools: " + ", ".join(result.get("tools", []))
                         )
                     else:
                         print("Extension installation cancelled.")
@@ -650,14 +679,18 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 for p in self.journal.list():
                     if p.get("kind") == "moneyfarm" and p.get("status") == "active":
                         p["auto_resume"] = False
-                        self.journal.checkpoint(p, status="paused",
-                                                note="Moneyfarm stopped by user")
+                        self.journal.checkpoint(
+                            p, status="paused", note="Moneyfarm stopped by user"
+                        )
                 print("Moneyfarm paused. It will not auto-start.")
             elif not argument:
                 existing = next(
-                    (p for p in self.journal.list()
-                     if p.get("kind") == "moneyfarm"
-                     and p.get("status") != "complete"), None
+                    (
+                        p
+                        for p in self.journal.list()
+                        if p.get("kind") == "moneyfarm" and p.get("status") != "complete"
+                    ),
+                    None,
                 )
                 if existing:
                     self.project = existing
@@ -665,12 +698,14 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                     self.project["auto_resume"] = True
                 else:
                     conversation = await self.request(
-                        "POST", "/api/conversations",
-                        json={"title": "Moneyfarm · First $10"}
+                        "POST", "/api/conversations", json={"title": "Moneyfarm · First $10"}
                     )
                     self.project = self.journal.create(
-                        "Moneyfarm · First $10", MONEYFARM_GOAL, conversation["id"],
-                        kind="moneyfarm", auto_resume=True,
+                        "Moneyfarm · First $10",
+                        MONEYFARM_GOAL,
+                        conversation["id"],
+                        kind="moneyfarm",
+                        auto_resume=True,
                         spending_cap=self.continuous_limit,
                     )
                 self.conversation_id = self.project["conversation_id"]
@@ -678,8 +713,11 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 self.journal.save(self.project)
                 self.auto_approve = True
                 self.continuous = True
-                show_event("saved", "Moneyfarm activated. Local code writes may be auto-approved; "
-                           "external actions and paid tools require review.")
+                show_event(
+                    "saved",
+                    "Moneyfarm activated. Local code writes may be auto-approved; "
+                    "external actions and paid tools require review.",
+                )
                 await self.run_project(first=self.project.get("turns", 0) == 0)
             else:
                 print("Usage: /moneyfarm [off]")
@@ -862,8 +900,10 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
         if prompt is not None:
             await self.ask(prompt)
             return
-        if self.project and self.project.get("auto_resume") and (
-            self.project.get("status") == "active"
+        if (
+            self.project
+            and self.project.get("auto_resume")
+            and (self.project.get("status") == "active")
         ):
             if self.project.get("kind") == "moneyfarm":
                 self.auto_approve = True
@@ -880,14 +920,14 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 elif self.continuous:
                     if not self.project:
                         self.project = self.journal.create(
-                            line[:70], line, self.conversation_id,
+                            line[:70],
+                            line,
+                            self.conversation_id,
                             spending_cap=self.continuous_limit,
                         )
                         await self.run_project(first=True)
                     else:
-                        self.journal.checkpoint(
-                            self.project, note="User direction: " + line[:700]
-                        )
+                        self.journal.checkpoint(self.project, note="User direction: " + line[:700])
                         await self.ask(line)
                         if self.project["status"] == "active":
                             await self.run_project()
