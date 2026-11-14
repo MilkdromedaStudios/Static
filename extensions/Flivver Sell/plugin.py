@@ -7,7 +7,6 @@ The extension never makes network requests and never accepts credentials.
 """
 
 import json
-import re
 from typing import Literal
 
 from pydantic import Field
