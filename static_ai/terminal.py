@@ -15,8 +15,8 @@ from pathlib import Path
 import httpx
 
 from .app import create_app
-from .terminal_setup import configure, load_credentials
 from .projects import MONEYFARM_GOAL, ProjectJournal
+from .terminal_setup import configure, load_credentials
 from .terminal_ui import choose_chat, show_banner, show_bubble, show_event
 
 COMMANDS = (
