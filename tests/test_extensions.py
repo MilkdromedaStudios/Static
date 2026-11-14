@@ -1,7 +1,5 @@
 """Extension manager and offline Fiverr seller workflow regressions."""
 
-import json
-
 from conftest import new_chat, wait_run
 
 from static_ai.extensions import ExtensionManager
