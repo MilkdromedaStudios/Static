@@ -11,6 +11,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 
@@ -58,6 +59,7 @@ COMMANDS = (
     "/goal",
     "/pause",
     "/moneyfarm",
+    "/extension",
 )
 
 
@@ -403,6 +405,10 @@ class Terminal:
   /pause                Pause continuous work and disable auto-resume
   /moneyfarm            Start/resume the $10 Minecraft-service project
   /moneyfarm off        Pause the moneyfarm and disable auto-start
+  /extension            List available repo-local extensions
+  /extension install ID Enable and load a reviewed extension's tools
+  /extension disable ID Disable extension tools
+  /extension info ID    Show extension capabilities and permissions
   /status              Show session and mode
   /tasks /skills /files  Inspect existing Static data
   /clear               Clear terminal display (does not erase messages)
@@ -577,6 +583,66 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
                 self.journal.checkpoint(self.project, status="paused",
                                         note="Paused by user; auto-resume disabled")
             print("Continuous and auto-approval disabled. Project checkpoint saved.")
+        elif command == "/extension":
+            operation, _, target = argument.partition(" ")
+            target = target.strip()
+            if not argument or operation == "list":
+                items = await self.request("GET", "/api/extensions")
+                if not items:
+                    print("No extensions found in the repository /extensions folder.")
+                for item in items:
+                    print(
+                        f"{item['id']} · {item['name']} [{ 'enabled' if item['active'] else 'available' }] "
+                        f"v{item['version']}\n  {item['description']}"
+                    )
+                print("Extensions are local Python code, not sandboxed. Only install trusted sources.")
+            elif operation == "info" and target:
+                items = await self.request("GET", "/api/extensions")
+                matches = [x for x in items if target.casefold() in (
+                    x["name"].casefold(), x["id"].casefold()
+                )]
+                if len(matches) != 1:
+                    print("Unknown extension. Run /extension list.")
+                else:
+                    print(json.dumps(matches[0], indent=2, ensure_ascii=False))
+            elif operation in ("install", "enable") and target:
+                items = await self.request("GET", "/api/extensions")
+                matches = [x for x in items if target.casefold() in (
+                    x["id"].casefold(), x["name"].casefold()
+                )]
+                if len(matches) != 1:
+                    print("Unknown extension. Run /extension list for its ID.")
+                else:
+                    item = matches[0]
+                    print(
+                        f"Enabling {item['name']} loads trusted-local Python with "
+                        "your user account permissions. It is not sandboxed."
+                    )
+                    confirmation = (
+                        await self.session.prompt_async(
+                            f"Type INSTALL {item['id']} to enable: "
+                        )
+                    ).strip()
+                    if confirmation == "INSTALL " + item["id"]:
+                        result = await self.request(
+                            "POST", "/api/extensions/" + quote(item["id"], safe="") + "/enable"
+                        )
+                        print(
+                            f"Enabled {result['id']}; tools: "
+                            + ", ".join(result.get("tools", []))
+                        )
+                    else:
+                        print("Extension installation cancelled.")
+            elif operation == "disable" and target:
+                result = await self.request(
+                    "POST", "/api/extensions/" + quote(target, safe="") + "/disable"
+                )
+                print("Disabled:", result["id"])
+            else:
+                print(
+                    "Use /extension list, /extension info ID, "
+                    "/extension install ID or /extension disable ID."
+                )
         elif command == "/moneyfarm":
             if argument == "off":
                 self.continuous = False
