@@ -6,6 +6,7 @@ import logging
 
 from pydantic import ValidationError
 
+from .compaction import compact_messages
 from .db import now, uid
 from .skills.base import Context
 
@@ -253,6 +254,19 @@ class Engine:
                     "Step limit reached. Completed files are saved. Send a narrower follow-up to continue."
                 )
             state["steps"] += 1
+            # No additional model calls: compact old finished tool observations,
+            # retain recent coherent turns, and pin the user's active objective.
+            compacted, memory, dropped = compact_messages(
+                state["messages"], memory=state.get("memory", "")
+            )
+            if dropped:
+                state["messages"] = compacted
+                state["memory"] = memory
+                self.store.run_state(run_id, state)
+                self.store.event(run_id, "compaction", {
+                    "removed": dropped, "checkpoint_size": len(memory),
+                    "note": "Older finished steps summarized; latest objective retained",
+                })
             reply = await self.providers.complete(
                 run_id,
                 state["messages"],
