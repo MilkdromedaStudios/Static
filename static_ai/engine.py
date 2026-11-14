@@ -263,10 +263,15 @@ class Engine:
                 state["messages"] = compacted
                 state["memory"] = memory
                 self.store.run_state(run_id, state)
-                self.store.event(run_id, "compaction", {
-                    "removed": dropped, "checkpoint_size": len(memory),
-                    "note": "Older finished steps summarized; latest objective retained",
-                })
+                self.store.event(
+                    run_id,
+                    "compaction",
+                    {
+                        "removed": dropped,
+                        "checkpoint_size": len(memory),
+                        "note": "Older finished steps summarized; latest objective retained",
+                    },
+                )
             reply = await self.providers.complete(
                 run_id,
                 state["messages"],

@@ -1,0 +1,15 @@
+{
+  "id": "fiverr-sell",
+  "name": "Flivver Sell",
+  "version": "0.1.0",
+  "entrypoint": "plugin.py",
+  "description": "Offline Minecraft modpack gig drafts, manually entered order tracking, project briefs and human-reviewed delivery preparations. No Fiverr account/API automation.",
+  "api_version": 1,
+  "capabilities": [
+    "draft_gigs",
+    "track_manual_orders",
+    "create_modpack_briefs",
+    "prepare_delivery_drafts"
+  ],
+  "fiverr_connection": "none; official seller API not publicly available"
+}

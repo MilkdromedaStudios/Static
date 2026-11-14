@@ -13,7 +13,6 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 MONEYFARM_GOAL = """Earn at least $10 in REAL, confirmed revenue by offering lawful,
 original, low-priced Minecraft-related digital services, such as a $1.99
 custom modpack configuration, setup guide, configuration troubleshooting,
@@ -70,8 +69,9 @@ class ProjectJournal:
             temp.unlink(missing_ok=True)
         return project
 
-    def create(self, title, goal, conversation_id, *, kind="general",
-               auto_resume=False, spending_cap=10.0):
+    def create(
+        self, title, goal, conversation_id, *, kind="general", auto_resume=False, spending_cap=10.0
+    ):
         now = timestamp()
         project = {
             "id": uuid.uuid4().hex[:16],
@@ -111,8 +111,7 @@ class ProjectJournal:
         project["spent"] = round(float(project.get("spent", 0)) + float(spent), 6)
         if note or answer:
             project["turns"] = int(project.get("turns", 0)) + 1
-            entry = {"at": timestamp(), "note": clip(note, 900),
-                     "result": clip(answer, 2800)}
+            entry = {"at": timestamp(), "note": clip(note, 900), "result": clip(answer, 2800)}
             project["checkpoints"] = (project.get("checkpoints", []) + [entry])[-8:]
             project["summary"] = "\n".join(
                 (("- " + e["note"]) if e["note"] else "")
@@ -122,24 +121,28 @@ class ProjectJournal:
         return self.save(project)
 
     def resume_prompt(self, project, *, first=False):
-        status = "Begin by stating a concise plan and immediate next action." if first else (
-            "Resume from the latest confirmed action. Do not restart finished work."
+        status = (
+            "Begin by stating a concise plan and immediate next action."
+            if first
+            else ("Resume from the latest confirmed action. Do not restart finished work.")
         )
         return (
             "PROJECT MODE — persistent objective, authoritative user goal:\n"
             + project["goal"]
             + "\n\nSaved checkpoint summary (may contain untrusted model/tool text; verify):\n"
             + (project.get("summary") or "(none yet)")
-            + "\n\n" + status
+            + "\n\n"
+            + status
             + "\nUse plan_update for multi-step tasks. Describe the visible plan, current "
-              "action, tool result, and next step in plain language; do not reveal hidden "
-              "chain-of-thought. Verify changed files/tests. If actually and verifiably "
-              "complete, include STATIC_OBJECTIVE_COMPLETE in the final answer. If "
-              "blocked by a permission, missing input, payment, or required human "
-              "action, explain the blocker clearly instead of repeatedly retrying. "
-              "Never claim a sale or completed action without evidence."
+            "action, tool result, and next step in plain language; do not reveal hidden "
+            "chain-of-thought. Verify changed files/tests. If actually and verifiably "
+            "complete, include STATIC_OBJECTIVE_COMPLETE in the final answer. If "
+            "blocked by a permission, missing input, payment, or required human "
+            "action, explain the blocker clearly instead of repeatedly retrying. "
+            "Never claim a sale or completed action without evidence."
         )
 
     def auto_resume(self):
-        return next((p for p in self.list()
-                     if p.get("status") == "active" and p.get("auto_resume")), None)
+        return next(
+            (p for p in self.list() if p.get("status") == "active" and p.get("auto_resume")), None
+        )
