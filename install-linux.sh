@@ -6,6 +6,8 @@ APP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/static-code"
 BIN_DIR="$HOME/.local/bin"
 ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
 DESKTOP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+# Dedicated profile: do not change the user's normal LXTerminal colors or font.
+TERMINAL_PROFILE_DIR="$HOME/.config/lxterminal"
 WORK_DIR="$HOME/StaticWorkspace"
 REPO_URL="https://github.com/MilkdromedaStudios/Static.git"
 
@@ -60,23 +62,45 @@ exec "$APP_DIR/.venv/bin/python" -m static_ai.terminal --data-dir "$APP_DIR/data
 EOF
 chmod +x "$BIN_DIR/static-code"
 
-# GUI launcher: try common terminal emulators, then display a useful error.
+# A separate, readable Pi desktop profile. Preserve customizations on repeat
+# installs; only touch the profile owned by this launcher when creating it.
+mkdir -p "$TERMINAL_PROFILE_DIR"
+if [[ ! -f "$TERMINAL_PROFILE_DIR/lxterminal-StaticCode.conf" ]]; then
+  cat > "$TERMINAL_PROFILE_DIR/lxterminal-StaticCode.conf" <<'EOF'
+[general]
+fontname=Monospace 13
+bgcolor=rgb(11,17,32)
+fgcolor=rgb(231,241,255)
+color_preset=Custom
+bgalpha=65535
+scrollback=5000
+cursorblinks=false
+disallowbold=false
+hidescrollbar=false
+hidemenubar=true
+geometry_columns=100
+geometry_rows=34
+EOF
+fi
+
+# GUI launcher: use a named, isolated LXTerminal profile on Raspberry Pi OS.
+# --no-remote prevents LXTerminal reusing an already-open light themed window.
 cat > "$BIN_DIR/static-code-desktop" <<'EOF'
 #!/usr/bin/env bash
 set -Eeuo pipefail
 BIN="$HOME/.local/bin/static-code"
-if command -v x-terminal-emulator >/dev/null 2>&1; then
-  exec x-terminal-emulator -e "$BIN"
+if command -v lxterminal >/dev/null 2>&1; then
+  exec lxterminal --no-remote --profile=StaticCode --geometry=100x34 --title="Static Code" --command="$BIN"
 elif command -v xfce4-terminal >/dev/null 2>&1; then
-  exec xfce4-terminal --disable-server --command="$BIN"
-elif command -v lxterminal >/dev/null 2>&1; then
-  exec lxterminal -e "$BIN"
+  exec xfce4-terminal --disable-server --title="Static Code" --geometry=100x34 --command="$BIN"
+elif command -v xterm >/dev/null 2>&1; then
+  exec xterm -fa "DejaVu Sans Mono" -fs 13 -geometry 100x34 -bg "#0B1120" -fg "#E7F1FF" -e "$BIN"
 elif command -v gnome-terminal >/dev/null 2>&1; then
   exec gnome-terminal -- "$BIN"
 elif command -v konsole >/dev/null 2>&1; then
   exec konsole -e "$BIN"
-elif command -v xterm >/dev/null 2>&1; then
-  exec xterm -e "$BIN"
+elif command -v x-terminal-emulator >/dev/null 2>&1; then
+  exec x-terminal-emulator -e "$BIN"
 else
   echo "No supported terminal emulator found. Run $BIN from a terminal." >&2
   exit 1

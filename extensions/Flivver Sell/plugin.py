@@ -143,7 +143,7 @@ async def export_gig(ctx, args):
         "# Gig draft — not published\n\n"
         f"Title: {row['title']}\n"
         f"Category: {row['category']}\n"
-        f"Price: \${row['price_usd']:.2f}\n"
+        f"Price: ${row['price_usd']:.2f}\n"
         f"Delivery: {row['turnaround_days']} days\n"
         f"Revisions: {row['revisions']}\n"
         f"Tags: {tags}\n\n"
