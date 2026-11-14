@@ -18,7 +18,17 @@ import httpx
 from .app import create_app
 from .projects import MONEYFARM_GOAL, ProjectJournal
 from .terminal_setup import configure, load_credentials
-from .terminal_ui import choose_chat, show_banner, show_bubble, show_event
+from .terminal_ui import (
+    choose_chat,
+    dark_terminal,
+    prompt_style,
+    show_banner,
+    show_bubble,
+    show_event,
+    show_plan,
+    show_run_summary,
+    status_toolbar,
+)
 
 COMMANDS = (
     "/help",
@@ -104,7 +114,6 @@ class Terminal:
             from prompt_toolkit import PromptSession
             from prompt_toolkit.completion import WordCompleter
             from prompt_toolkit.history import FileHistory
-            from prompt_toolkit.styles import Style
         except ImportError as exc:
             raise RuntimeError("Install the terminal UI with: pip install -e '.[code]'") from exc
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -114,18 +123,14 @@ class Terminal:
             completer=WordCompleter(COMMANDS, sentence=True),
             complete_while_typing=False,
             multiline=False,
-            bottom_toolbar=lambda: (
-                f" ◈ STATIC  ·  {self.project['title'][:24] if self.project else self.mode}"
-                f"  ·  {self.conversation_id[:8] if self.conversation_id else '-'}"
-                "  ·  /projects  /moneyfarm  /help "
+            bottom_toolbar=lambda: status_toolbar(
+                self.project,
+                self.mode,
+                self.conversation_id,
+                self.continuous,
+                self.auto_approve,
             ),
-            style=Style.from_dict(
-                {
-                    "bottom-toolbar": "bg:#111827 #b8d5f6",
-                    "prompt": "bold #67d9ff",
-                    "": "bg:#0c1220 #e7efff",
-                }
-            ),
+            style=prompt_style(),
         )
         if self.conversation_id:
             await self.request("GET", f"/api/conversations/{self.conversation_id}")
@@ -217,9 +222,7 @@ class Terminal:
                     kind, data = event["kind"], event["data"]
                     if kind == "plan":
                         steps = data.get("steps", [])
-                        show_event(
-                            "plan", "Plan: " + " → ".join(x.get("title", "") for x in steps[:12])
-                        )
+                        show_plan(steps)
                     elif kind == "tool_start":
                         self.last_tool_count += 1
                         seen_actions.append(str(data.get("name", "tool")))
@@ -270,6 +273,7 @@ class Terminal:
                     if result["status"] != "completed":
                         print(f"Run {result['status']}: {result.get('error', '')}")
                     spent = float(result.get("spent") or 0)
+                    show_run_summary(result["status"], self.last_tool_count, spent)
                     self.continuous_spent += spent
                     if self.project:
                         self.journal.checkpoint(
@@ -911,7 +915,7 @@ Ctrl+C during a run stops it; approval prompts default to No.""")
             await self.run_project()
         while True:
             try:
-                line = (await self.session.prompt_async("❯ ")).strip()
+                line = (await self.session.prompt_async([("class:prompt", " ❯  ")])).strip()
                 if not line:
                     continue
                 if line.startswith("/"):
@@ -972,7 +976,8 @@ def main():
     parser.add_argument("-p", "--prompt", help="Run one prompt and exit")
     args = parser.parse_args()
     try:
-        asyncio.run(run(args))
+        with dark_terminal():
+            asyncio.run(run(args))
     except RuntimeError as exc:
         parser.exit(1, str(exc) + "\n")
 
